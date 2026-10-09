@@ -1,0 +1,80 @@
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Box from "@mui/material/Box";
+import Header from './components/Header';
+import Footer from './components/Footer';
+import { HEADER_HEIGHT } from "./constants/layout";
+import Home from "./pages/Home";
+import Posts from "./pages/Posts";
+import Projects from "./pages/Projects";
+import Books from "./pages/Books";
+import About from "./pages/About";
+import CV from "./pages/CV";
+import Admin from "./pages/Admin";
+import AdminConsole from "./components/admin/AdminConsole";
+import AdminNewPost from "./pages/AdminNewPost";
+import AdminEditPost from "./pages/AdminEditPost";
+import PostDetail from "./pages/PostDetail";
+import './App.css'
+
+function App() {
+  return (
+    <Router>
+      <Header />
+      {/* Sticky-footer shell: the column is at least a viewport tall and <main>
+          takes the slack, so the footer sits at the bottom of a short page
+          instead of one full screen below the fold. Pages therefore set
+          `flex: 1` rather than a height of their own. */}
+      <Box
+        sx={{
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* The header is fixed, so every page is offset by its height here
+            rather than each page guessing at its own top margin. */}
+        <Box
+          component="main"
+          sx={{
+            pt: HEADER_HEIGHT,
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/curriculum-vitae" element={<CV />} />
+            <Route path="/posts" element={<Posts />} />
+            <Route
+              path="/posts/:slug"
+              element={<PostDetail backTo="/posts" backLabel="Posts" />}
+            />
+            <Route path="/projects" element={<Projects />} />
+            <Route
+              path="/projects/:slug"
+              element={<PostDetail backTo="/projects" backLabel="Projects" />}
+            />
+            <Route path="/books" element={<Books />} />
+            <Route
+              path="/books/:slug"
+              element={<PostDetail backTo="/books" backLabel="Books" />}
+            />
+            {/* Not in Header's navItems: the owner's page, not a visitor's.
+                Nested so `Admin` checks the session exactly once and hands it
+                down via `<Outlet context>` to whichever of these is active. */}
+            <Route path="/admin" element={<Admin />}>
+              <Route index element={<AdminConsole />} />
+              <Route path="new" element={<AdminNewPost />} />
+              <Route path="edit/:slug" element={<AdminEditPost />} />
+            </Route>
+          </Routes>
+        </Box>
+        <Footer />
+      </Box>
+    </Router>
+  )
+}
+
+export default App

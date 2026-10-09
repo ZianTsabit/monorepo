@@ -1,0 +1,71 @@
+:root {
+  font-family: 'Ubuntu', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Stop iOS Safari inflating text when the phone is rotated to landscape. */
+  -webkit-text-size-adjust: 100%;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  min-height: 100%;
+  /* A single wide child should never make the whole page pan sideways. */
+  overflow-x: hidden;
+}
+
+/* Colours are owned by the MUI theme (see src/theme.ts) and applied by
+   CssBaseline. Do not set element text colours here — a literal would override
+   the active scheme and break the light/dark toggle.
+
+   The page background is the one exception. MUI emits its palette as CSS
+   variables injected by JavaScript, so between first paint and React mounting
+   there is nothing colouring the page and a dark-mode visitor sees a white
+   flash. These rules live in the static stylesheet, which is render-blocking,
+   so the correct backdrop is painted immediately:
+     - the media queries handle a first-time visitor following their OS;
+     - the .light/.dark classes handle a stored explicit choice, and are set by
+       the inline script in index.html before this stylesheet is parsed.
+   Keep these values in sync with palette.background.default in theme.ts. */
+
+@media (prefers-color-scheme: dark) {
+  html:not(.light) {
+    background-color: #000000;
+    color-scheme: dark;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  html:not(.dark) {
+    background-color: #ffffff;
+    color-scheme: light;
+  }
+}
+
+html.dark {
+  background-color: #000000;
+  color-scheme: dark;
+}
+
+html.light {
+  background-color: #ffffff;
+  color-scheme: light;
+}
+
+img,
+svg,
+video {
+  max-width: 100%;
+}
