@@ -1,0 +1,82 @@
+:root {
+  font-family: 'IBM Plex Sans', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Stop iOS Safari inflating text when the phone is rotated to landscape. */
+  -webkit-text-size-adjust: 100%;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  min-height: 100%;
+  /* A single wide child should never make the whole page pan sideways.
+
+     `clip` rather than `hidden`, and the difference is load-bearing: `hidden`
+     makes the element a scroll container, which silently disables
+     `position: sticky` anywhere inside the page (the Posts page's filter bar
+     would be the casualty today). `clip` cuts the overflow off without
+     creating one. */
+  overflow-x: clip;
+}
+
+/* Colours are owned by the MUI theme (see src/theme.ts) and applied by
+   CssBaseline. Do not set element text colours here — a literal would override
+   the active scheme and break the light/dark toggle.
+
+   The page background is the one exception. MUI emits its palette as CSS
+   variables injected by JavaScript, so between first paint and React mounting
+   there is nothing colouring the page and a visitor would see a flash of the
+   wrong scheme. These rules live in the static stylesheet, which is
+   render-blocking, so the correct backdrop is painted immediately:
+     - the bare `html` rule is the default, and must match main.tsx's
+       `defaultMode` -- light. `prefers-color-scheme` is deliberately not
+       consulted: the site no longer follows the OS, so honouring it here would
+       paint dark for an OS-dark visitor and then swap to light on mount;
+     - the .light/.dark/.rain classes handle a stored explicit choice, and are
+       set by the inline script in index.html before this stylesheet is parsed.
+       They are *scheme* names, not modes: rain is a dark-mode scheme, so the
+       script has to read the stored dark-scheme name as well as the mode.
+   Keep these values in sync with palette.background.default in theme.ts. */
+
+html {
+  background-color: #f9f6ee;
+  color-scheme: light;
+}
+
+html.dark {
+  background-color: #121212;
+  color-scheme: dark;
+}
+
+html.light {
+  background-color: #f9f6ee;
+  color-scheme: light;
+}
+
+/* The third scheme. `color-scheme: dark` because rain declares
+   `palette.mode: "dark"` -- this is what the browser paints scrollbars and
+   form controls from, and telling it "light" would give an overcast page white
+   scrollbars. */
+html.rain {
+  background-color: #1b2229;
+  color-scheme: dark;
+}
+
+img,
+svg,
+video {
+  max-width: 100%;
+}
