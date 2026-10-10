@@ -31,3 +31,5 @@ minio_data/
 # Gradle build output and caches.
 ziantsabit-be/build/
 ziantsabit-be/.gradle/
+# Maven-style build output (IDEs and stray `mvn` runs still produce it).
+ziantsabit-be/target/
