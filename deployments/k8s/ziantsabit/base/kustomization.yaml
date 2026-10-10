@@ -1,0 +1,12 @@
+# Everything both environments share. No namespace here: each overlay sets its
+# own, and every object below lands in it.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - external.yaml
+  - ziantsabit-be.yaml
+  - ziantsabit-fe.yaml
+configMapGenerator:
+  - name: ziantsabit-be
+    envs:
+      - ziantsabit-be.env

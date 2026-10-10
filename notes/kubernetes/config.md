@@ -9,7 +9,7 @@ from outside. Non-secret settings go in a **ConfigMap**, credentials in a
 ```yaml
 apiVersion: v1
 kind: ConfigMap
-metadata: { name: ziantsabit-be, namespace: ziantsabit }
+metadata: { name: ziantsabit-be, namespace: ziantsabit-prod }
 data:
   POSTGRES_HOST: postgres
   POSTGRES_PORT: "5432"      # values are always strings: quote numbers and booleans
@@ -25,9 +25,9 @@ Same shape, for passwords, tokens, keys, TLS certificates.
 
 ```bash
 # Create by hand so the value never lands in git:
-kubectl -n ziantsabit create secret generic ziantsabit-be \
+kubectl -n ziantsabit-prod create secret generic ziantsabit-be \
   --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
-kubectl -n ziantsabit create secret generic cloudflared --from-literal=token="$TOKEN"
+kubectl -n ziantsabit-prod create secret generic cloudflared --from-literal=token="$TOKEN"
 ```
 
 In YAML, `data:` values are **base64** (and `stringData:` takes plain text that
@@ -35,7 +35,7 @@ gets encoded for you). Base64 is encoding, not encryption -- anyone who can read
 the Secret can read the value:
 
 ```bash
-kubectl get secret ziantsabit-be -n ziantsabit -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 -d
+kubectl get secret ziantsabit-be -n ziantsabit-prod -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 -d
 ```
 
 What makes Secrets safer than ConfigMaps is mostly *policy*: RBAC can let
@@ -81,7 +81,10 @@ containers:
 
 - **Env vars** are read once, when the container starts. Editing the
   ConfigMap/Secret changes nothing in running pods until they restart:
-  `kubectl rollout restart deploy/<name> -n <ns>`.
+  `kubectl rollout restart deploy/<name> -n <ns>`. Kustomize's
+  `configMapGenerator` (what this site uses) avoids that: the ConfigMap's name
+  ends in a hash of its contents, so a changed value means a new name in the
+  Deployment, which rolls it.
 - **Mounted files** do update in place after a short delay (about a minute) --
   but only if the app re-reads them, and not for `subPath` mounts.
 - A pod referencing a ConfigMap/Secret that doesn't exist won't start

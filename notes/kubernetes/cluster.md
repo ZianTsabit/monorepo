@@ -4,7 +4,10 @@
 
 A folder for objects. Names only have to be unique within a namespace, RBAC and
 quotas can be set per namespace, and deleting a namespace deletes everything in
-it. Example: [`00-namespace.yaml`](../../deployments/k8s/ziantsabit/00-namespace.yaml).
+it. This site has three: `ziantsabit-stg` and `ziantsabit-prod` (one per
+environment, from the overlays in
+[`deployments/k8s/ziantsabit/`](../../deployments/k8s/ziantsabit/)) and `cloudflared`
+for the tunnel both share.
 
 - Most kinds are **namespaced** (Pod, Deployment, Service, ConfigMap, Secret, PVC).
 - Some are **cluster-wide** (Namespace, Node, PersistentVolume, StorageClass,
@@ -14,13 +17,13 @@ it. Example: [`00-namespace.yaml`](../../deployments/k8s/ziantsabit/00-namespace
 - Namespaces are **not** a network boundary: pods can reach Services in other
   namespaces unless a NetworkPolicy says otherwise.
 
-The namespace has to exist before anything is created in it, which is why
-`00-namespace.yaml` is named to sort first under `kubectl apply -f <folder>`.
+The namespace has to exist before anything is created in it. Kustomize
+(`kubectl apply -k`) takes care of the order, applying the Namespace first.
 
 ## Node
 
-A machine in the cluster (k3s server or agent). Created when the machine
-joins, not by you.
+A machine in the cluster (k3s server or agent -- see [architecture.md](architecture.md)
+for what runs on each). Created when the machine joins, not by you.
 
 ```bash
 kubectl get nodes -o wide
@@ -58,7 +61,7 @@ Four kinds, two pairs:
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
-metadata: { name: read-pods, namespace: ziantsabit }
+metadata: { name: read-pods, namespace: ziantsabit-prod }
 rules:
   - apiGroups: [""]               # "" = core group (pods, services, secrets, ...)
     resources: [pods, pods/log]
@@ -66,16 +69,16 @@ rules:
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
-metadata: { name: ci-reads-pods, namespace: ziantsabit }
+metadata: { name: ci-reads-pods, namespace: ziantsabit-prod }
 subjects:
-  - { kind: ServiceAccount, name: ci, namespace: ziantsabit }
+  - { kind: ServiceAccount, name: ci, namespace: ziantsabit-prod }
 roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: read-pods }
 ```
 
 - Permissions only add up; there's no "deny".
 - A RoleBinding may point at a ClusterRole, granting it in just that namespace --
   handy for reusing the built-ins `view`, `edit`, `admin`.
-- Check: `kubectl auth can-i list secrets -n ziantsabit --as=system:serviceaccount:ziantsabit:ci`.
+- Check: `kubectl auth can-i list secrets -n ziantsabit-prod --as=system:serviceaccount:ziantsabit-prod:ci`.
 
 ## ResourceQuota
 
@@ -85,7 +88,7 @@ Services, PVCs, storage.
 ```yaml
 apiVersion: v1
 kind: ResourceQuota
-metadata: { name: quota, namespace: ziantsabit }
+metadata: { name: quota, namespace: ziantsabit-prod }
 spec:
   hard:
     requests.cpu: "2"
@@ -104,7 +107,7 @@ for containers that don't set them, and rejects ones outside min/max.
 ```yaml
 apiVersion: v1
 kind: LimitRange
-metadata: { name: defaults, namespace: ziantsabit }
+metadata: { name: defaults, namespace: ziantsabit-prod }
 spec:
   limits:
     - type: Container

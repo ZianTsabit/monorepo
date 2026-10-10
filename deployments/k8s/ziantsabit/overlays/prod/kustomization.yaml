@@ -1,0 +1,21 @@
+# Production: ziantsabit.com, www.ziantsabit.com, api.ziantsabit.com.
+#   kubectl apply -k deployments/k8s/ziantsabit/overlays/prod
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ziantsabit-prod
+resources:
+  - namespace.yaml
+  - ../../base
+configMapGenerator:
+  - name: ziantsabit-be
+    behavior: merge
+    envs:
+      - ziantsabit-be.env
+# The versions running here. A release is staging's tags, copied over once
+# they've proved themselves -- except the SPA's, which is built per environment
+# (its API address is compiled in): same version, without the -stg suffix.
+images:
+  - name: ghcr.io/ziantsabit/ziantsabit-be
+    newTag: 1.0.0
+  - name: ghcr.io/ziantsabit/ziantsabit-fe
+    newTag: 1.0.0

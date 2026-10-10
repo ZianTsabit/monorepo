@@ -87,9 +87,9 @@ readiness. Tune with `spec.strategy`:
   can't run two versions at once; causes downtime.
 
 ```bash
-kubectl rollout status deploy/ziantsabit-fe -n ziantsabit
-kubectl rollout undo deploy/ziantsabit-fe -n ziantsabit     # back to previous version
-kubectl rollout restart deploy/ziantsabit-be -n ziantsabit  # fresh pods, same spec (e.g. after a ConfigMap edit)
+kubectl rollout status deploy/ziantsabit-fe -n ziantsabit-prod
+kubectl rollout undo deploy/ziantsabit-fe -n ziantsabit-prod     # back to previous version
+kubectl rollout restart deploy/ziantsabit-be -n ziantsabit-prod  # fresh pods, same spec (e.g. after a ConfigMap edit)
 ```
 
 **Replicas and state.** More replicas is only safe if pods don't hold state in

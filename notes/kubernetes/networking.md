@@ -11,7 +11,7 @@ across the **ready** ones (pods failing their readiness probe are left out).
 ```yaml
 apiVersion: v1
 kind: Service
-metadata: { name: ziantsabit-fe, namespace: ziantsabit }
+metadata: { name: ziantsabit-fe, namespace: ziantsabit-prod }
 spec:
   selector: { app: ziantsabit-fe }   # which pods
   ports:
@@ -119,14 +119,23 @@ for `Egress`).
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: { name: be-only-from-cloudflared, namespace: ziantsabit }
+metadata: { name: be-only-from-cloudflared, namespace: ziantsabit-prod }
 spec:
   podSelector: { matchLabels: { app: ziantsabit-be } }   # who this protects
   policyTypes: [Ingress]
   ingress:
-    - from: [{ podSelector: { matchLabels: { app: cloudflared } } }]
+    - from:
+        # Both in ONE list item = cloudflared pods in the cloudflared namespace.
+        # A bare podSelector only looks in the policy's own namespace.
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: cloudflared } }
+          podSelector: { matchLabels: { app: cloudflared } }
       ports: [{ port: 8000 }]
 ```
+
+Careful with the dashes: `namespaceSelector` and `podSelector` under one `-`
+mean "both must match"; as two separate `-` items they mean "either", which
+would let in every pod of the cloudflared namespace *and* every `app:
+cloudflared` pod anywhere.
 
 Needs a network plugin that enforces it; k3s enforces it out of the box (its
 built-in network policy controller with Flannel).

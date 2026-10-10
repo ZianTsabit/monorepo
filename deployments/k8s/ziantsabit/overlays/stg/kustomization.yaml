@@ -1,0 +1,23 @@
+# Staging: stg.ziantsabit.com, stg-api.ziantsabit.com.
+#   kubectl apply -k deployments/k8s/ziantsabit/overlays/stg
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ziantsabit-stg
+resources:
+  - namespace.yaml
+  - ../../base
+configMapGenerator:
+  - name: ziantsabit-be
+    behavior: merge
+    envs:
+      - ziantsabit-be.env
+# Nothing depends on staging staying up through a node drain.
+replicas:
+  - name: ziantsabit-fe
+    count: 1
+images:
+  - name: ghcr.io/ziantsabit/ziantsabit-be
+    newTag: 1.0.0
+  # Built with --build-arg VITE_API_BASE_URL=https://stg-api.ziantsabit.com/api.
+  - name: ghcr.io/ziantsabit/ziantsabit-fe
+    newTag: 1.0.0-stg

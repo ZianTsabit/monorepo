@@ -6,11 +6,13 @@ connect. Examples point at the real manifests in
 
 | File | Covers |
 | --- | --- |
+| [architecture.md](architecture.md) | Servers (control plane) and agents (workers): what runs on each, how a Deployment becomes containers, what fails when a node goes down |
 | [workloads.md](workloads.md) | Pod, Deployment, ReplicaSet, StatefulSet, DaemonSet, Job, CronJob, HorizontalPodAutoscaler, PodDisruptionBudget |
 | [networking.md](networking.md) | Service (and its types), EndpointSlice, Ingress, Gateway API, NetworkPolicy |
 | [config.md](config.md) | ConfigMap, Secret |
 | [storage.md](storage.md) | PersistentVolume, PersistentVolumeClaim, StorageClass, volumes in general |
 | [cluster.md](cluster.md) | Namespace, ServiceAccount, RBAC, ResourceQuota, LimitRange, Node |
+| [kustomize.md](kustomize.md) | Not an object: `kustomization.yaml`, base and overlays, generators, patches -- how this site gets stg and prod from one set of manifests |
 
 ## The one idea everything rests on
 
@@ -29,7 +31,7 @@ apiVersion: apps/v1        # API group + version this kind lives in
 kind: Deployment           # which type of object
 metadata:
   name: ziantsabit-fe      # unique per kind, per namespace
-  namespace: ziantsabit    # omitted for cluster-wide kinds (Namespace, Node, ...)
+  namespace: ziantsabit-prod   # omitted for cluster-wide kinds (Namespace, Node, ...)
   labels:                  # key/value tags; how objects find each other
     app: ziantsabit-fe
   annotations: {}          # key/value notes for tools; never used for selection
@@ -57,8 +59,8 @@ So a typo in a label doesn't error -- it silently matches nothing. When a
 Service "doesn't work", compare its `selector` with the pods' labels first:
 
 ```bash
-kubectl get pods -n ziantsabit --show-labels
-kubectl get endpointslices -n ziantsabit   # empty = selector matched no ready pods
+kubectl get pods -n ziantsabit-prod --show-labels
+kubectl get endpointslices -n ziantsabit-prod   # empty = selector matched no ready pods
 ```
 
 ## How a request reaches this site
@@ -75,8 +77,8 @@ visitor → Cloudflare → cloudflared pods ──► Service ziantsabit-fe ─�
 ```bash
 kubectl get <kind> -n <ns>                 # list (add -o wide or -o yaml)
 kubectl describe <kind> <name> -n <ns>     # details + recent events: read this first when stuck
-kubectl logs deploy/ziantsabit-be -n ziantsabit [-f] [--previous]
-kubectl exec -it deploy/ziantsabit-be -n ziantsabit -- sh
+kubectl logs deploy/ziantsabit-be -n ziantsabit-prod [-f] [--previous]
+kubectl exec -it deploy/ziantsabit-be -n ziantsabit-prod -- sh
 kubectl apply -f <file-or-folder>          # create or update to match the file
 kubectl diff -f <file-or-folder>           # what apply would change
 kubectl delete -f <file>
@@ -85,5 +87,5 @@ kubectl explain deployment.spec.strategy   # built-in docs for any field
 kubectl get events -n <ns> --sort-by=.lastTimestamp
 ```
 
-Tip: `kubectl config set-context --current --namespace=ziantsabit` saves
-typing `-n ziantsabit` every time.
+Tip: `kubectl config set-context --current --namespace=ziantsabit-prod` saves
+typing `-n ziantsabit-prod` every time.

@@ -15,7 +15,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgres
-  namespace: ziantsabit
 spec:
   ports:
     - name: postgres
@@ -26,7 +25,6 @@ apiVersion: discovery.k8s.io/v1
 kind: EndpointSlice
 metadata:
   name: postgres
-  namespace: ziantsabit
   labels:
     kubernetes.io/service-name: postgres
     # Anything but the controller's own value, so it leaves this slice alone.
@@ -44,7 +42,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: rustfs
-  namespace: ziantsabit
 spec:
   ports:
     - name: s3
@@ -55,7 +52,6 @@ apiVersion: discovery.k8s.io/v1
 kind: EndpointSlice
 metadata:
   name: rustfs
-  namespace: ziantsabit
   labels:
     kubernetes.io/service-name: rustfs
     endpointslice.kubernetes.io/managed-by: ziantsabit-manifests

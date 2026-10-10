@@ -38,7 +38,7 @@ a claim; it doesn't care where the disk comes from.
 ```yaml
 apiVersion: v1
 kind: PersistentVolumeClaim
-metadata: { name: data, namespace: ziantsabit }
+metadata: { name: data, namespace: ziantsabit-prod }
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: local-path

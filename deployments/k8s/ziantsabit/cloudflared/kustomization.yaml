@@ -1,0 +1,7 @@
+# The tunnel both environments share.
+#   kubectl apply -k deployments/k8s/ziantsabit/cloudflared
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - cloudflared.yaml
