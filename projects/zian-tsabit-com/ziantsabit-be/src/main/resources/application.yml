@@ -8,8 +8,7 @@ spring:
     name: ziantsabit-be
 
   # Postgres only, as before: there is no embedded or in-memory fallback, so a
-  # bare `./gradlew bootRun` needs a reachable server (the compose file's
-  # `db` service publishes one on 127.0.0.1:5432).
+  # bare `./gradlew bootRun` needs a reachable server, set by POSTGRES_*.
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:zian_tsabit_be}
     username: ${POSTGRES_USER:zian_tsabit_be}
@@ -18,7 +17,7 @@ spring:
       data-source-properties:
         # libpq semantics: `prefer` silently falls back to plaintext, so a
         # database across a network wants `require` or `verify-full`. See
-        # docker-compose.external-db.yml.
+        # POSTGRES_SSLMODE in .env.example.
         sslmode: ${POSTGRES_SSLMODE:prefer}
         # Only read for verify-ca / verify-full.
         sslrootcert: ${POSTGRES_SSLROOTCERT:}
@@ -125,7 +124,7 @@ app:
     access-key: ${AWS_S3_ACCESS_KEY_ID:rustfsadmin}
     secret-key: ${AWS_S3_SECRET_ACCESS_KEY:rustfsadmin}
     region: ${AWS_S3_REGION_NAME:us-east-1}
-    # API -> storage. Inside Docker this is http://rustfs:9000.
+    # API -> storage.
     endpoint: ${AWS_S3_ENDPOINT_URL:http://localhost:9000}
     # browser -> storage, written into the URL of every upload. Differs from
     # the endpoint whenever the API reaches the bucket by a name the browser

@@ -64,11 +64,11 @@ Routing is client-side, so `dist/` contains no `about.html` — any static host 
 
 Full documentation is in [`ziantsabit-be/README.md`](ziantsabit-be/README.md); the essentials follow.
 
-All commands run from `ziantsabit-be/`. It is a Spring Boot app over Postgres, with no in-memory fallback, so start a database first — the compose file's `db` service is published on `127.0.0.1:5432` with the credentials the app defaults to:
+All commands run from `ziantsabit-be/`. It is a Spring Boot app over Postgres, with no in-memory fallback, so it needs your Postgres and RustFS servers — set their addresses and credentials in `.env` (see `.env.example`):
 
 ```bash
 cd ziantsabit-be
-docker compose up -d db rustfs storage-init   # Postgres, plus the image bucket
+set -a; source .env; set +a                     # POSTGRES_*, AWS_S3_*
 ADMIN_USERNAME=me ADMIN_PASSWORD=change-me ./gradlew bootRun
 ```
 
@@ -132,9 +132,9 @@ cd ziantsabit-be
 docker compose up --build
 ```
 
-Starts `db` (Postgres 16), `rustfs` (S3-compatible storage for uploaded images) and a one-shot `storage-init` that creates the bucket, then `api` once they are ready. Flyway migrates on startup. The image is built from source — there is no bind mount or autoreload, so for an edit loop run `./gradlew bootRun` on the host against `docker compose up db rustfs storage-init`.
+Starts the API only, against the Postgres and RustFS servers named in `ziantsabit-be/.env` — neither is created by this repo, and the bucket must already exist and be public-read. Flyway migrates on startup. The image is built from source — there is no bind mount or autoreload, so for an edit loop run `./gradlew bootRun` on the host.
 
-Production is `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`, reading secrets from `ziantsabit-be/.env`; add `-f docker-compose.external-db.yml` for a Postgres on another host. The variable names are unchanged from the Django deployment, so an existing `.env` works as-is.
+Production is `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`, reading secrets from `ziantsabit-be/.env`. The variable names are unchanged from the Django deployment, so an existing `.env` works as-is.
 
 ```bash
 docker compose logs -f api
@@ -148,7 +148,7 @@ Read by `src/main/resources/application.yml`; the defaults are what a bare `./gr
 | Variable | Default | |
 | --- | --- | --- |
 | `POSTGRES_DB` / `_USER` / `_PASSWORD` | `zian_tsabit_be` / `zian_tsabit_be` / `postgres` | Dev-only password default |
-| `POSTGRES_HOST` / `_PORT` | `localhost` / `5432` | `db` inside docker-compose |
+| `POSTGRES_HOST` / `_PORT` | `localhost` / `5432` | `host.docker.internal` for a server on the Docker host |
 | `POSTGRES_SSLMODE` / `_SSLROOTCERT` | `prefer` / — | For a database across a network |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | — | Create this account at startup if missing |
 | `ALLOWED_HOSTS` | `localhost 127.0.0.1 [::1]` | Space-separated. `DJANGO_ALLOWED_HOSTS` is still read as a fallback |
@@ -180,7 +180,7 @@ See `ziantsabit-be/.env.example` for a copy-pasteable `.env`.
 
 ```bash
 # terminal 1
-cd ziantsabit-be && docker compose up -d db && ./gradlew bootRun
+cd ziantsabit-be && set -a && source .env && set +a && ./gradlew bootRun
 
 # terminal 2
 cd ziantsabit-fe && npm run dev

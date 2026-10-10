@@ -25,12 +25,12 @@ docker compose up --build   # multi-stage build -> nginx on :8080
 Backend (run from `ziantsabit-be/`):
 
 ```bash
-docker compose up -d db rustfs storage-init   # Postgres + image bucket for a host run
+set -a; source .env; set +a        # point a host run at your Postgres + RustFS
 ./gradlew bootRun                  # API on :8000, Swagger at /api/docs/; Flyway migrates on start
 ./gradlew test                     # whole suite (embedded Postgres, no Docker needed)
 ./gradlew test --tests BookApiTest # one class; 'BookApiTest$Pagination' for one @Nested group
 ./gradlew bootJar                  # build/libs/ziantsabit-be-1.0.0.jar
-docker compose up --build          # db + rustfs + api, all in containers
+docker compose up --build          # api only; Postgres and RustFS are external, set in .env
 ```
 
 No test runner is configured for the frontend.
@@ -201,7 +201,7 @@ Every API test extends `support/ApiTestBase`: a real server on a random port, a 
 
 Everything environment-specific is in `application.yml`, reading the **same variable names the Django deployment used** (`POSTGRES_*`, `CORS_ALLOWED_ORIGINS`, `AWS_S3_*`, …; `DJANGO_ALLOWED_HOSTS` is read as a fallback for `ALLOWED_HOSTS`), so `docker-compose.prod.yml` works with the existing `.env` unchanged. `DJANGO_SECRET_KEY` is no longer used.
 
-The `Dockerfile` is two stages (a Gradle-wrapper build on `eclipse-temurin:25-jdk`, then `eclipse-temurin:25-jre`), running as UID 1000. There is no entrypoint script: Flyway migrates at startup, and `api` waits on `db`'s healthcheck so that never races Postgres booting. The healthcheck is `curl /actuator/health`, which is exempt from the allowed-hosts check because the container probes itself on 127.0.0.1.
+The `Dockerfile` is two stages (a Gradle-wrapper build on `eclipse-temurin:25-jdk`, then `eclipse-temurin:25-jre`), running as UID 1000. There is no entrypoint script: Flyway migrates at startup. **Postgres and RustFS are not in the compose stack** — they are separate, already-running servers named in `.env` (`POSTGRES_HOST`, `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY`, `AWS_S3_ENDPOINT_URL`; `host.docker.internal` reaches the Docker host), and the bucket is created and made public-read by hand. With nothing to `depends_on`, a Postgres still booting fails Flyway and `restart: unless-stopped` retries. The healthcheck is `curl /actuator/health`, which is exempt from the allowed-hosts check because the container probes itself on 127.0.0.1.
 
 ## Frontend/backend seam
 

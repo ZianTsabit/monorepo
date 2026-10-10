@@ -1,204 +1,68 @@
 # `version:` is gone -- Compose v2 ignores it and warns that it is obsolete.
+#
+# The API only. Postgres and the S3-compatible bucket (RustFS) are separate
+# servers that are not part of this stack, so their addresses and credentials
+# come from a `.env` beside this file (gitignored) -- see .env.example.
+# `${VAR:?message}` makes Compose refuse to start with a clear error rather
+# than silently pointing the API at nothing.
 services:
-  db:
-    image: postgres:16-alpine
-    container_name: ziantsabit-be_db
-    environment:
-      # Same three names the postgres image itself reads on first boot, and
-      # what application.yml's POSTGRES_* defaults point at.
-      POSTGRES_DB: "zian_tsabit_be"
-      POSTGRES_USER: "zian_tsabit_be"
-      POSTGRES_PASSWORD: "postgres"
-    ports:
-      # The `api` service reaches this over the compose network and needs no
-      # published port. This is for the host: .env.example's POSTGRES_HOST=
-      # localhost, and every `./gradlew bootRun` outside Docker, have
-      # nothing to connect to without it. (`./gradlew test` does not need it: the
-      # suite starts its own embedded Postgres.)
-      #
-      # Bound to 127.0.0.1 rather than published on all interfaces, because the
-      # credentials above are throwaway dev values and the short form
-      # ("5432:5432") would expose them to anything that can route to this
-      # machine. Change the host port if a local Postgres already holds 5432.
-      - "127.0.0.1:5432:5432"
-    volumes:
-      # Named volume, not a bind mount: Postgres's data directory is not
-      # something a host user should edit by hand, unlike the old db.sqlite3.
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U zian_tsabit_be -d zian_tsabit_be"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  # S3-compatible object storage for post images. The API talks to this through
-  # the AWS SDK's generic S3 client, so the server behind the endpoint is an
-  # environment choice -- this was MinIO once, and swapping it needed no code
-  # changes at all.
-  rustfs:
-    # RustFS ships no dated RELEASE tags the way MinIO did. `latest` is what
-    # their own compose file uses; pin it to a digest once a build is known
-    # good, because this project is young enough that `latest` moves under you.
-    image: rustfs/rustfs:latest
-    container_name: ziantsabit-be_rustfs
-    environment:
-      # Single drive, matching the old `server /data`. RustFS's multi-drive
-      # erasure form is `/data/rustfs{0..3}`, which a dev box does not need.
-      RUSTFS_VOLUMES: "/data"
-      RUSTFS_ADDRESS: "0.0.0.0:9000"
-      RUSTFS_CONSOLE_ADDRESS: "0.0.0.0:9001"
-      RUSTFS_CONSOLE_ENABLE: "true"
-      # Same shape as MINIO_ROOT_USER / MINIO_ROOT_PASSWORD were. `rustfsadmin`
-      # is RustFS's documented default and is fine only because nothing here is
-      # published beyond localhost.
-      RUSTFS_ACCESS_KEY: "rustfsadmin"
-      RUSTFS_SECRET_KEY: "rustfsadmin"
-    ports:
-      # 9000 is the S3 API. It is published because the *browser* loads every
-      # post image straight from it -- see AWS_S3_PUBLIC_ENDPOINT_URL below.
-      - "9000:9000"
-      # 9001 is the web console, for looking at what got uploaded.
-      - "9001:9001"
-    volumes:
-      # Named volume, like postgres_data. Note this is a *different* volume from
-      # the old minio_data: nothing migrates the objects across, so uploads made
-      # under MinIO stay in minio_data and their URLs 404 until you copy them.
-      - rustfs_data:/data
-    healthcheck:
-      # RustFS serves a plain /health on the S3 port, unlike MinIO where the
-      # check had to go through `mc`. If the image turns out to ship no curl,
-      # swap this for a wget -q -O- form.
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-    restart: unless-stopped
-
-  storage-init:
-    # One-shot: create the bucket and make it readable without a signature.
-    # Runs to completion and exits, which is why it has no `restart` policy.
-    #
-    # This was `mc`, MinIO's own client. RustFS has no drop-in equivalent for
-    # `mc anonymous set download`, so the policy is written as raw S3 -- which
-    # is the honest version of what that command was doing anyway.
-    # Pinned to a full version: amazon/aws-cli publishes `latest` and concrete
-    # `2.x.y` tags only -- there is no floating `2`, and asking for one fails
-    # the pull with "docker.io/amazon/aws-cli:2: not found".
-    image: amazon/aws-cli:2.36.24
-    container_name: ziantsabit-be_storage_init
-    depends_on:
-      rustfs:
-        condition: service_healthy
-    environment:
-      AWS_ACCESS_KEY_ID: "rustfsadmin"
-      AWS_SECRET_ACCESS_KEY: "rustfsadmin"
-      AWS_DEFAULT_REGION: "us-east-1"
-      # Without this the CLI spends its first seconds probing an EC2 metadata
-      # endpoint that does not exist here before falling back to the keys above.
-      AWS_EC2_METADATA_DISABLED: "true"
-    # The image's entrypoint is `aws` itself; this needs a shell to chain two
-    # calls and to swallow the "bucket already exists" case on a re-run.
-    entrypoint: /bin/sh
-    command:
-      - -c
-      - |
-        set -eu
-        endpoint=http://rustfs:9000
-        bucket=ziantsabit-media
-        aws --endpoint-url "$$endpoint" s3api create-bucket --bucket "$$bucket" \
-          || echo "bucket already exists, continuing"
-        # Public read on objects only -- no s3:ListBucket, so the bucket's
-        # contents cannot be enumerated by anyone who finds one image URL.
-        #
-        # `"Principal": {"AWS": ["*"]}` is deliberate and is NOT interchangeable
-        # with the more common `"Principal": "*"`: RustFS rejects both the bare
-        # string and the unwrapped {"AWS": "*"} with a 400 InvalidArgument
-        # (rustfs/rustfs#1336). The single-element array is the form it accepts.
-        aws --endpoint-url "$$endpoint" s3api put-bucket-policy \
-          --bucket "$$bucket" \
-          --policy '{
-            "Version": "2012-10-17",
-            "Statement": [
-              {
-                "Sid": "PublicReadGetObject",
-                "Effect": "Allow",
-                "Principal": {"AWS": ["*"]},
-                "Action": ["s3:GetObject"],
-                "Resource": ["arn:aws:s3:::ziantsabit-media/*"]
-              }
-            ]
-          }'
-        # Let a browser *read the pixels* of an image, not just display them.
-        # The admin's story-card feature draws a post's cover onto a canvas and
-        # exports it as a PNG, and a cross-origin image drawn without CORS
-        # taints the canvas -- `toBlob` then throws and the card cannot be
-        # saved. `crossOrigin="anonymous"` on the <img> is the client half;
-        # this is the half the bucket owes it. Ordinary <img> rendering never
-        # needed it, which is why it was not here before.
-        #
-        # GET and HEAD only, and no ExposeHeaders: this widens what may be read
-        # from a bucket that is already public-read, and nothing else.
-        #
-        # Non-fatal, unlike the two calls above. RustFS is young and this is a
-        # less-travelled corner of the S3 API; the site works without it, minus
-        # covers on story cards -- which the dialog says out loud rather than
-        # failing silently. Do not let `set -eu` take the whole stack down for
-        # a nicety.
-        aws --endpoint-url "$$endpoint" s3api put-bucket-cors \
-          --bucket "$$bucket" \
-          --cors-configuration '{
-            "CORSRules": [
-              {
-                "AllowedOrigins": ["*"],
-                "AllowedMethods": ["GET", "HEAD"],
-                "AllowedHeaders": ["*"],
-                "MaxAgeSeconds": 3000
-              }
-            ]
-          }' || echo "put-bucket-cors not supported here; story cards will drop covers"
-
   api:
     build: .
     container_name: ziantsabit-be_api
     ports:
       - "8000:8000"
     environment:
-      # application.yml reads all of these; its defaults are the same local
-      # values, so this list is mostly here to make the wiring visible.
-      POSTGRES_DB: "zian_tsabit_be"
-      POSTGRES_USER: "zian_tsabit_be"
-      POSTGRES_PASSWORD: "postgres"
-      POSTGRES_HOST: "db"
-      POSTGRES_PORT: "5432"
-      AWS_STORAGE_BUCKET_NAME: "ziantsabit-media"
-      AWS_S3_ACCESS_KEY_ID: "rustfsadmin"
-      AWS_S3_SECRET_ACCESS_KEY: "rustfsadmin"
-      # API -> RustFS, over the compose network.
-      AWS_S3_ENDPOINT_URL: "http://rustfs:9000"
-      # browser -> RustFS. `rustfs` is not a name the host can resolve, so image
-      # URLs have to be built from the published port instead. Getting this
-      # wrong is invisible on upload and breaks every <img> on the site.
-      AWS_S3_PUBLIC_ENDPOINT_URL: "http://localhost:9000"
-      # A fresh database has no account to write with. Set these in the shell
-      # (`ADMIN_USERNAME=me ADMIN_PASSWORD=... docker compose up`) to have one
+      # `localhost` inside the container is the container itself. A server on
+      # the Docker host is `host.docker.internal` (mapped below); anything else
+      # by its address or hostname.
+      POSTGRES_HOST: "${POSTGRES_HOST:?set POSTGRES_HOST to your Postgres server's address}"
+      POSTGRES_PORT: "${POSTGRES_PORT:-5432}"
+      POSTGRES_DB: "${POSTGRES_DB:-zian_tsabit_be}"
+      POSTGRES_USER: "${POSTGRES_USER:-zian_tsabit_be}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
+      # libpq semantics. `prefer` silently falls back to plaintext when the
+      # server has no TLS; set `require` (encrypt) or `verify-full` (encrypt and
+      # authenticate the server) once the connection crosses a network.
+      POSTGRES_SSLMODE: "${POSTGRES_SSLMODE:-prefer}"
+      # Only for verify-ca / verify-full: a path *inside the container*, so the
+      # CA file has to be mounted in -- see the commented volume below.
+      POSTGRES_SSLROOTCERT: "${POSTGRES_SSLROOTCERT:-}"
+
+      # The bucket must already exist, be public-read on its objects, and allow
+      # cross-origin GET -- nothing here creates or configures it any more.
+      AWS_STORAGE_BUCKET_NAME: "${AWS_STORAGE_BUCKET_NAME:-ziantsabit-media}"
+      # Named after the server's own RUSTFS_* keys, as the Django-era .env had them.
+      AWS_S3_ACCESS_KEY_ID: "${RUSTFS_ACCESS_KEY:?set RUSTFS_ACCESS_KEY in .env}"
+      AWS_S3_SECRET_ACCESS_KEY: "${RUSTFS_SECRET_KEY:?set RUSTFS_SECRET_KEY in .env}"
+      # API -> storage, as the container reaches it.
+      AWS_S3_ENDPOINT_URL: "${AWS_S3_ENDPOINT_URL:?set AWS_S3_ENDPOINT_URL to your RustFS S3 endpoint}"
+      # browser -> storage, written into the URL of every upload. Differs from
+      # the line above whenever the container reaches the bucket by a name the
+      # browser cannot resolve (host.docker.internal, an internal IP). Getting
+      # this wrong is invisible on upload and breaks every <img> on the site.
+      AWS_S3_PUBLIC_ENDPOINT_URL: "${AWS_S3_PUBLIC_ENDPOINT_URL:-${AWS_S3_ENDPOINT_URL}}"
+
+      # A fresh database has no account to write with. Set these to have one
       # created on startup; an existing account is never touched.
       ADMIN_USERNAME: "${ADMIN_USERNAME:-}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
-    # No source bind mount, unlike the Django image: the jar is compiled into
-    # the image, so there is nothing to autoreload. For a fast edit loop, run
-    # `docker compose up db rustfs storage-init` and `./gradlew bootRun`
-    # on the host instead.
-    depends_on:
-      # Waits for pg_isready, not just container start -- Flyway's migrations
-      # at startup would otherwise race Postgres's own boot and fail.
-      db:
-        condition: service_healthy
-      # Nothing reads the bucket until someone uploads, so the API only needs
-      # storage-init to have finished, not to have started before it.
-      storage-init:
-        condition: service_completed_successfully
+    extra_hosts:
+      # Lets POSTGRES_HOST / AWS_S3_ENDPOINT_URL name a server running on the
+      # Docker host itself. Docker Desktop provides this name already; on a
+      # Linux engine it has to be mapped.
+      - "host.docker.internal:host-gateway"
+    # Uncomment together with POSTGRES_SSLROOTCERT=/etc/ssl/postgres-ca.crt in
+    # .env to use verify-ca or verify-full.
+    # volumes:
+    #   - ./postgres-ca.crt:/etc/ssl/postgres-ca.crt:ro
+    #
+    # No depends_on: there is no database service to wait for. If Postgres is
+    # still booting (after a host reboot, say), Flyway fails at startup, the
+    # container exits, and `restart: unless-stopped` brings it back until it
+    # connects -- expect a few restarts in the log rather than a clean boot.
+    #
+    # No source bind mount either: the jar is compiled into the image. For a
+    # fast edit loop run `./gradlew bootRun` on the host instead.
     healthcheck:
       # The Temurin image ships curl. The health route is exempt from the
       # allowed-hosts check, so probing 127.0.0.1 works in production too.
@@ -208,7 +72,3 @@ services:
       start_period: 40s
       retries: 3
     restart: unless-stopped
-
-volumes:
-  postgres_data:
-  rustfs_data:

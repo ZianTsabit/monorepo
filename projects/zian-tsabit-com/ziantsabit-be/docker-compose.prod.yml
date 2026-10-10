@@ -6,35 +6,9 @@
 # .env.example for the list. `${VAR:?message}` makes Compose refuse to start
 # with a clear error rather than silently deploying a development default.
 #
-# The variable names are the ones the Django deployment used, DJANGO_ prefix
-# included, so an existing `.env` carries over to this image unchanged.
+# The database and bucket connection settings live in the base file, since the
+# API needs them in every environment. This adds only what production changes.
 services:
-  db:
-    environment:
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
-
-  rustfs:
-    environment:
-      RUSTFS_ACCESS_KEY: "${RUSTFS_ACCESS_KEY:?set RUSTFS_ACCESS_KEY in .env}"
-      RUSTFS_SECRET_KEY: "${RUSTFS_SECRET_KEY:?set RUSTFS_SECRET_KEY in .env}"
-    # `!override` replaces the base list rather than appending to it. Without it
-    # Compose keeps docker-compose.yml's "9000:9000" as well and the second
-    # binding fails with "port is already allocated".
-    ports: !override
-      # The S3 API, published to loopback for cloudflared to reach. The tunnel
-      # maps the media hostname here, because the browser loads every post image
-      # straight from this port.
-      - "127.0.0.1:9000:9000"
-      # The console. Not routed through the tunnel -- reach it over an SSH
-      # port-forward when you want to look at the bucket.
-      - "127.0.0.1:9001:9001"
-
-  storage-init:
-    # Same credentials as the server it is configuring.
-    environment:
-      AWS_ACCESS_KEY_ID: "${RUSTFS_ACCESS_KEY:?set RUSTFS_ACCESS_KEY in .env}"
-      AWS_SECRET_ACCESS_KEY: "${RUSTFS_SECRET_KEY:?set RUSTFS_SECRET_KEY in .env}"
-
   api:
     environment:
       # The API's own hostname, space-separated. Not the site's.
@@ -55,11 +29,7 @@ services:
       # rate limits a per-visitor address rather than the tunnel's. Safe here
       # because nothing reaches this process except through the tunnel.
       FORWARD_HEADERS_STRATEGY: "native"
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
-      AWS_S3_ACCESS_KEY_ID: "${RUSTFS_ACCESS_KEY:?set RUSTFS_ACCESS_KEY in .env}"
-      AWS_S3_SECRET_ACCESS_KEY: "${RUSTFS_SECRET_KEY:?set RUSTFS_SECRET_KEY in .env}"
-      # API -> RustFS is unchanged: a compose-network name.
-      # browser -> RustFS is the public media host, and it is written into the
+      # browser -> storage is the public media host, and it is written into the
       # stored URL of every upload. Settle on it before the first upload; a
       # later change 404s every image already published.
       AWS_S3_PUBLIC_ENDPOINT_URL: "${MEDIA_ORIGIN:?e.g. https://media.example.com}"

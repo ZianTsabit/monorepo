@@ -19,10 +19,10 @@ Spring Boot 4.1 on Java 25, over PostgreSQL 16. It is a port of an earlier Djang
 
 ## Quick start
 
-You need **JDK 25** and Docker (for Postgres and the image bucket). Gradle is not needed — `./gradlew` downloads it.
+You need **JDK 25**, a reachable Postgres server and an S3-compatible bucket (RustFS); neither is started by this repo. Gradle is not needed — `./gradlew` downloads it.
 
 ```bash
-docker compose up -d db rustfs storage-init
+set -a; source .env; set +a      # POSTGRES_*, AWS_S3_* -- see .env.example
 ADMIN_USERNAME=me ADMIN_PASSWORD=change-me ./gradlew bootRun
 ```
 
@@ -41,7 +41,7 @@ Flyway creates the schema on startup. `ADMIN_USERNAME` / `ADMIN_PASSWORD` create
 | `./gradlew test --tests BookApiTest` | One test class |
 | `./gradlew test --tests 'BookApiTest$Pagination'` | One `@Nested` group |
 | `./gradlew bootJar` | Build `build/libs/ziantsabit-be-1.0.0.jar` |
-| `docker compose up --build` | Everything in containers: `db`, `rustfs`, `storage-init`, `api` |
+| `docker compose up --build` | The API in a container, against the servers named in `.env` |
 
 ## Project layout
 
@@ -149,7 +149,7 @@ Everything is set by environment variables, read in `src/main/resources/applicat
 | Variable | Default | |
 | --- | --- | --- |
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `zian_tsabit_be` / `zian_tsabit_be` / `postgres` | |
-| `POSTGRES_HOST` / `POSTGRES_PORT` | `localhost` / `5432` | `db` inside Compose |
+| `POSTGRES_HOST` / `POSTGRES_PORT` | `localhost` / `5432` | `host.docker.internal` for a server on the Docker host |
 | `POSTGRES_SSLMODE` / `POSTGRES_SSLROOTCERT` | `prefer` / — | `require` or `verify-full` for a database across a network |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | — | Create this account at startup if it is missing |
 | `ALLOWED_HOSTS` | `localhost 127.0.0.1 [::1]` | Space-separated hostnames this API answers to. `DJANGO_ALLOWED_HOSTS` is still read as a fallback |
@@ -196,7 +196,9 @@ Each test starts from a clean database (only the seeded pages). Three callers ar
 docker compose up --build
 ```
 
-Starts `db` (Postgres 16), `rustfs` (S3-compatible storage), a one-shot `storage-init` that creates the public-read bucket, then `api` once those are ready. The image is built from source in two stages (Gradle on a JDK, then a JRE-only runtime) and runs as UID 1000. There is no source mount, so for an edit loop use `./gradlew bootRun` against `docker compose up -d db rustfs storage-init`.
+Starts `api` only. Postgres and RustFS are your own servers, named in `.env`: `POSTGRES_HOST`, `POSTGRES_PASSWORD`, `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` and `AWS_S3_ENDPOINT_URL` are required (see [`.env.example`](.env.example)). From inside the container, a server on the Docker host is `host.docker.internal`. The bucket must already exist, be public-read on its objects (`s3:GetObject`, not `s3:ListBucket`) and allow cross-origin `GET`/`HEAD` — the admin's story cards draw covers onto a canvas, which needs it.
+
+There is no `depends_on`: if Postgres is still booting, Flyway fails, the container exits and `restart: unless-stopped` retries until it connects. The image is built from source in two stages (Gradle on a JDK, then a JRE-only runtime) and runs as UID 1000. There is no source mount, so for an edit loop use `./gradlew bootRun`.
 
 **Production** layers an override on top and reads secrets from `.env`:
 
@@ -204,7 +206,7 @@ Starts `db` (Postgres 16), `rustfs` (S3-compatible storage), a one-shot `storage
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-It requires `POSTGRES_PASSWORD`, `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, `SITE_ORIGINS` and `MEDIA_ORIGIN`, and binds the API to `127.0.0.1:8000` for the Cloudflare tunnel. Add `-f docker-compose.external-db.yml` to use a Postgres on another host instead of the bundled one.
+It additionally requires `DJANGO_ALLOWED_HOSTS`, `SITE_ORIGINS` and `MEDIA_ORIGIN`, and binds the API to `127.0.0.1:8000` for the Cloudflare tunnel.
 
 The container health check is `GET /actuator/health`.
 
