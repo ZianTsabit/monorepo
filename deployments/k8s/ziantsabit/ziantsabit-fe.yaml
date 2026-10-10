@@ -1,0 +1,79 @@
+# The SPA on the k3s cluster: nginx serving the built bundle, reached through
+# the same tunnel as the API. Apply with `kubectl apply -f deployments/k8s/ziantsabit/`
+# -- see README.md beside this file.
+#
+# There is no ConfigMap: the one setting the SPA has, VITE_API_BASE_URL, is
+# baked into the bundle when the image is built (see the frontend's
+# Dockerfile), so the image tag *is* the configuration. An image built without
+# --build-arg talks to http://localhost:8000/api from every visitor's browser.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ziantsabit-fe
+  namespace: ziantsabit
+spec:
+  # Stateless, so unlike the API this can run more than one pod: two on
+  # different nodes keep the site up while one is drained.
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ziantsabit-fe
+  template:
+    metadata:
+      labels:
+        app: ziantsabit-fe
+    spec:
+      # Uncomment if the GHCR package is private; see README.md beside this file.
+      # imagePullSecrets:
+      #   - name: ghcr
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: ziantsabit-fe
+      # No runAsUser: the stock nginx:alpine image starts as root to bind :80
+      # and then drops its workers to the `nginx` user. Running it as non-root
+      # needs nginx-unprivileged and a port above 1024 in nginx.conf.
+      containers:
+        - name: web
+          image: ghcr.io/ziantsabit/ziantsabit-fe:1.0.0
+          ports:
+            - name: http
+              containerPort: 80
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+          # `/` falls through to index.html (nginx.conf's try_files), so it
+          # answers 200 as long as nginx is up and the bundle is in the image.
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ziantsabit-fe
+  namespace: ziantsabit
+spec:
+  # ClusterIP only, like the API: the tunnel is the way in.
+  selector:
+    app: ziantsabit-fe
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

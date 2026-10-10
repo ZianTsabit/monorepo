@@ -1,15 +1,19 @@
 # Kubernetes: ziantsabit
 
-The [`ziantsabit-be`](../../../projects/zian-tsabit-com/ziantsabit-be) API on the home k3s cluster, reached only through a Cloudflare Tunnel:
+The site on the home k3s cluster -- the [`ziantsabit-fe`](../../../projects/zian-tsabit-com/ziantsabit-fe) SPA and the
+[`ziantsabit-be`](../../../projects/zian-tsabit-com/ziantsabit-be) API -- reached only through a Cloudflare Tunnel:
 
 ```
-visitor -> Cloudflare -> cloudflared (2 pods) -> Service ziantsabit-be :8000 -> API pod
+                                              ziantsabit.com, www -> Service ziantsabit-fe :80   -> nginx (2 pods)
+visitor -> Cloudflare -> cloudflared (2 pods)
+                                              api.ziantsabit.com  -> Service ziantsabit-be :8000 -> API pod
 ```
 
 | File | Holds |
 | --- | --- |
 | `00-namespace.yaml` | Namespace `ziantsabit` -- its own file so it sorts first under `kubectl apply -f` on this folder |
-| `ziantsabit-be.yaml` | The non-secret ConfigMap, the Deployment and its ClusterIP Service |
+| `ziantsabit-be.yaml` | The API: the non-secret ConfigMap, the Deployment and its ClusterIP Service |
+| `ziantsabit-fe.yaml` | The SPA: nginx Deployment and its ClusterIP Service; no ConfigMap, the API URL is baked into the image |
 | `cloudflared.yaml` | The tunnel connector |
 
 Postgres and RustFS stay outside the cluster, as under compose. Secrets are
@@ -27,15 +31,21 @@ Every command below is run from the monorepo root.
      sh -c 'nc -zvw3 10.0.0.50 5432; nc -zvw3 <rustfs-host> 9000'
    ```
 
-2. **Push the image.** The cluster pulls from GHCR:
+2. **Push the images.** The cluster pulls from GHCR. The SPA's API address is
+   compiled into its bundle, so it has to be passed at build time -- leave it
+   out and every visitor's browser calls `localhost:8000`:
 
    ```bash
    docker build -t ghcr.io/ziantsabit/ziantsabit-be:1.0.0 projects/zian-tsabit-com/ziantsabit-be
    docker push ghcr.io/ziantsabit/ziantsabit-be:1.0.0
+
+   docker build -t ghcr.io/ziantsabit/ziantsabit-fe:1.0.0 \
+     --build-arg VITE_API_BASE_URL=https://api.ziantsabit.com/api projects/zian-tsabit-com/ziantsabit-fe
+   docker push ghcr.io/ziantsabit/ziantsabit-fe:1.0.0
    ```
 
-   If the package is private, create a pull secret and uncomment
-   `imagePullSecrets` in the Deployment:
+   If the packages are private, create a pull secret and uncomment
+   `imagePullSecrets` in both Deployments:
 
    ```bash
    kubectl -n ziantsabit create secret docker-registry ghcr \
@@ -60,6 +70,7 @@ Every command below is run from the monorepo root.
 
    ```bash
    kubectl -n ziantsabit rollout status deploy/ziantsabit-be
+   kubectl -n ziantsabit rollout status deploy/ziantsabit-fe
    kubectl -n ziantsabit logs deploy/ziantsabit-be -f
    kubectl -n ziantsabit port-forward svc/ziantsabit-be 8000:8000   # then curl localhost:8000/actuator/health
    ```
@@ -75,23 +86,36 @@ and the old host would each get half the requests, and the old host cannot
 resolve a `.svc.cluster.local` route anyway.
 
 1. Create the tunnel in the dashboard, put its token in the `cloudflared`
-   Secret, and give it a throwaway hostname (e.g. `api-k8s.ziantsabit.com`)
-   routed to `http://ziantsabit-be.ziantsabit.svc.cluster.local:8000`. Smoke-test
-   it — expect `ALLOWED_HOSTS` to reject that hostname until you add it.
-2. Stop the compose container. Both would otherwise run against the same
+   Secret, and give it throwaway hostnames (e.g. `api-k8s.ziantsabit.com`
+   routed to `http://ziantsabit-be.ziantsabit.svc.cluster.local:8000`, and
+   `k8s.ziantsabit.com` to `http://ziantsabit-fe.ziantsabit.svc.cluster.local:80`).
+   Smoke-test them — expect `ALLOWED_HOSTS` to reject the API hostname until
+   you add it. The SPA at its throwaway hostname still calls the real
+   `api.ziantsabit.com`, and CORS will drop those responses unless
+   `https://k8s.ziantsabit.com` is in `CORS_ALLOWED_ORIGINS` for the test.
+2. Stop the API's compose container. Both would otherwise run against the same
    database with separate in-memory rate limits.
-3. Move the `api.ziantsabit.com` public hostname from the old tunnel to the new
-   one.
+3. Move the `api.ziantsabit.com`, `ziantsabit.com` and `www.ziantsabit.com`
+   public hostnames from the old tunnel to the new one, then stop the
+   frontend's compose container.
 
 Rolling back is the same in reverse; the database is untouched either way.
 
 ## Releasing a new version
 
 ```bash
+# API
 docker build -t ghcr.io/ziantsabit/ziantsabit-be:<version> projects/zian-tsabit-com/ziantsabit-be && docker push ghcr.io/ziantsabit/ziantsabit-be:<version>
 kubectl -n ziantsabit set image deploy/ziantsabit-be api=ghcr.io/ziantsabit/ziantsabit-be:<version>
+
+# SPA -- the build arg every time, it is not remembered between builds
+docker build -t ghcr.io/ziantsabit/ziantsabit-fe:<version> \
+  --build-arg VITE_API_BASE_URL=https://api.ziantsabit.com/api projects/zian-tsabit-com/ziantsabit-fe && docker push ghcr.io/ziantsabit/ziantsabit-fe:<version>
+kubectl -n ziantsabit set image deploy/ziantsabit-fe web=ghcr.io/ziantsabit/ziantsabit-fe:<version>
 ```
 
-Then bump the tag in `ziantsabit-be.yaml` too, or the next `kubectl apply`
-rolls back. A schema change runs on the new pod's startup, before the old one
+Then bump the tag in `ziantsabit-be.yaml` / `ziantsabit-fe.yaml` too, or the
+next `kubectl apply` rolls back. The two are versioned independently.
+
+An API schema change runs on the new pod's startup, before the old one
 stops, so a migration must work for the version still running.

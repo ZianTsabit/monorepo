@@ -139,6 +139,8 @@ Routing is client-side, so `/about`, `/books`, … exist only in `App.tsx` — t
 
 `npm run dev` and `npm run preview` both have this fallback built in, so this class of bug only ever shows up in the container.
 
+On the k3s cluster the same image runs as `deployments/k8s/ziantsabit/ziantsabit-fe.yaml` (monorepo root): two nginx pods behind a ClusterIP Service, reached through the backend's `cloudflared` tunnel. There is no ConfigMap — `VITE_API_BASE_URL` is a build arg, so the image has to be built with `--build-arg VITE_API_BASE_URL=https://api.ziantsabit.com/api` or every visitor's browser calls `localhost:8000`.
+
 ### Build gotcha
 
 `tsconfig.app.json` sets `strict`, `noUnusedLocals`, and `noUnusedParameters`. `npm run dev` tolerates an unused import; `npm run build` runs `tsc -b` first and fails on it. Run `npm run build` before assuming a change is complete.
@@ -204,7 +206,7 @@ Everything environment-specific is in `application.yml`, reading the **same vari
 
 The `Dockerfile` is two stages (a Gradle-wrapper build on `eclipse-temurin:25-jdk`, then `eclipse-temurin:25-jre`), running as UID 1000. There is no entrypoint script: Flyway migrates at startup. **Postgres and RustFS are not in the compose stack** — they are separate, already-running servers named in `.env` (`POSTGRES_HOST`, `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY`, `AWS_S3_ENDPOINT_URL`; `host.docker.internal` reaches the Docker host), and the bucket is created and made public-read by hand. With nothing to `depends_on`, a Postgres still booting fails Flyway and `restart: unless-stopped` retries. The healthcheck is `curl /actuator/health`, which is exempt from the allowed-hosts check because the container probes itself on 127.0.0.1.
 
-**Kubernetes** (`deployments/k8s/ziantsabit/` at the monorepo root, outside this project; steps in its README) is the same image on the k3s cluster: namespace `ziantsabit`, one API replica behind a ClusterIP Service, and a two-pod `cloudflared` tunnel that routes straight to that Service. Three things in it are load-bearing:
+**Kubernetes** (`deployments/k8s/ziantsabit/` at the monorepo root, outside this project; steps in its README) is the same image on the k3s cluster: namespace `ziantsabit`, one API replica behind a ClusterIP Service, and a two-pod `cloudflared` tunnel that routes straight to that Service (and to the frontend's, `ziantsabit-fe.yaml` beside it). Three things in it are load-bearing:
 
 - **The ConfigMap uses the app's variable names**, not the compose names in `config/<env>.env` — there is no `run.sh` in between to map them, so `RUSTFS_*` becomes `AWS_S3_ACCESS_KEY_ID`/`AWS_S3_SECRET_ACCESS_KEY` in the hand-made Secret.
 - **One replica**, because the rate limits are in-memory per pod.
