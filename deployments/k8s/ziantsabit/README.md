@@ -1,6 +1,6 @@
-# Kubernetes
+# Kubernetes: ziantsabit
 
-The API on the home k3s cluster, reached only through a Cloudflare Tunnel:
+The [`ziantsabit-be`](../../../projects/zian-tsabit-com/ziantsabit-be) API on the home k3s cluster, reached only through a Cloudflare Tunnel:
 
 ```
 visitor -> Cloudflare -> cloudflared (2 pods) -> Service ziantsabit-be :8000 -> API pod
@@ -8,12 +8,14 @@ visitor -> Cloudflare -> cloudflared (2 pods) -> Service ziantsabit-be :8000 -> 
 
 | File | Holds |
 | --- | --- |
-| `00-namespace.yaml` | Namespace `ziantsabit` -- its own file so it sorts first under `kubectl apply -f k8s/` |
+| `00-namespace.yaml` | Namespace `ziantsabit` -- its own file so it sorts first under `kubectl apply -f` on this folder |
 | `ziantsabit-be.yaml` | The non-secret ConfigMap, the Deployment and its ClusterIP Service |
 | `cloudflared.yaml` | The tunnel connector |
 
 Postgres and RustFS stay outside the cluster, as under compose. Secrets are
 never committed: the two Secrets below are created by hand.
+
+Every command below is run from the monorepo root.
 
 ## First deploy
 
@@ -28,7 +30,7 @@ never committed: the two Secrets below are created by hand.
 2. **Push the image.** The cluster pulls from GHCR:
 
    ```bash
-   docker build -t ghcr.io/ziantsabit/ziantsabit-be:1.0.0 .
+   docker build -t ghcr.io/ziantsabit/ziantsabit-be:1.0.0 projects/zian-tsabit-com/ziantsabit-be
    docker push ghcr.io/ziantsabit/ziantsabit-be:1.0.0
    ```
 
@@ -42,11 +44,11 @@ never committed: the two Secrets below are created by hand.
 
 3. **Apply, then create the secrets.** Pods wait in `CreateContainerConfigError`
    until their Secret exists. The API's secret uses the app's names, mapped from
-   the compose names in `config/prod.env`:
+   the compose names in the backend's `config/prod.env`:
 
    ```bash
-   kubectl apply -f k8s/
-   set -a; source config/prod.env; set +a
+   kubectl apply -f deployments/k8s/ziantsabit/
+   set -a; source projects/zian-tsabit-com/ziantsabit-be/config/prod.env; set +a
    kubectl -n ziantsabit create secret generic ziantsabit-be \
      --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
      --from-literal=AWS_S3_ACCESS_KEY_ID="$RUSTFS_ACCESS_KEY" \
@@ -86,7 +88,7 @@ Rolling back is the same in reverse; the database is untouched either way.
 ## Releasing a new version
 
 ```bash
-docker build -t ghcr.io/ziantsabit/ziantsabit-be:<version> . && docker push ghcr.io/ziantsabit/ziantsabit-be:<version>
+docker build -t ghcr.io/ziantsabit/ziantsabit-be:<version> projects/zian-tsabit-com/ziantsabit-be && docker push ghcr.io/ziantsabit/ziantsabit-be:<version>
 kubectl -n ziantsabit set image deploy/ziantsabit-be api=ghcr.io/ziantsabit/ziantsabit-be:<version>
 ```
 

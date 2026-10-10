@@ -214,7 +214,7 @@ It additionally requires `DJANGO_ALLOWED_HOSTS`, `SITE_ORIGINS` and `MEDIA_ORIGI
 
 The container health check is `GET /actuator/health`.
 
-**Kubernetes.** [`k8s/`](k8s/) runs the same image on the k3s cluster behind an in-cluster `cloudflared`, with the env as a ConfigMap plus a hand-made Secret. See [`k8s/README.md`](k8s/README.md) for the first deploy, the cut-over from compose and releases.
+**Kubernetes.** [`deployments/k8s/ziantsabit/`](../../../deployments/k8s/ziantsabit/) at the monorepo root runs the same image on the k3s cluster behind an in-cluster `cloudflared`, with the env as a ConfigMap plus a hand-made Secret. See [its README](../../../deployments/k8s/ziantsabit/README.md) for the first deploy, the cut-over from compose and releases.
 
 ## Coming from Django
 

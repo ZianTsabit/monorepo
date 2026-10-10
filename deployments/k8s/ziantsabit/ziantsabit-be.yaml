@@ -1,11 +1,11 @@
-# The API on the k3s cluster. Apply with `kubectl apply -f k8s/` -- see
-# k8s/README.md for the secrets that have to exist first and for the cut-over.
+# The API on the k3s cluster. Apply with `kubectl apply -f deployments/k8s/ziantsabit/` -- see
+# README.md beside this file for the secrets that have to exist first and for the cut-over.
 #
 # As with the compose stack, Postgres and RustFS are separate, already-running
 # servers: nothing here creates the database or the bucket.
 ---
 # Everything environment-specific that is not a credential, under the app's own
-# variable names (not the compose names config/prod.env uses -- there is no
+# variable names (not the compose names the backend's config/prod.env uses -- there is no
 # run.sh here to map one onto the other).
 apiVersion: v1
 kind: ConfigMap
@@ -60,7 +60,7 @@ spec:
       labels:
         app: ziantsabit-be
     spec:
-      # Uncomment if the GHCR package is private; see k8s/README.md.
+      # Uncomment if the GHCR package is private; see README.md beside this file.
       # imagePullSecrets:
       #   - name: ghcr
       securityContext:

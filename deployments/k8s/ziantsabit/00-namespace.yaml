@@ -1,4 +1,4 @@
-# Its own file, named to sort first: `kubectl apply -f k8s/` reads files in
+# Its own file, named to sort first: `kubectl apply -f deployments/k8s/ziantsabit/` reads files in
 # alphabetical order, so the namespace has to exist before cloudflared.yaml.
 apiVersion: v1
 kind: Namespace
