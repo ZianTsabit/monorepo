@@ -33,3 +33,8 @@ ziantsabit-be/build/
 ziantsabit-be/.gradle/
 # Maven-style build output (IDEs and stray `mvn` runs still produce it).
 ziantsabit-be/target/
+
+# Per-environment settings for ziantsabit-be/run.sh. They hold secrets: only
+# the template is tracked.
+ziantsabit-be/config/*
+!ziantsabit-be/config/example.env

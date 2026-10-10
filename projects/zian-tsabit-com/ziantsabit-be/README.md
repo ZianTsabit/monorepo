@@ -22,8 +22,8 @@ Spring Boot 4.1 on Java 25, over PostgreSQL 16. It is a port of an earlier Djang
 You need **JDK 25**, a reachable Postgres server and an S3-compatible bucket (RustFS); neither is started by this repo. Gradle is not needed — `./gradlew` downloads it.
 
 ```bash
-set -a; source .env; set +a      # POSTGRES_*, AWS_S3_* -- see .env.example
-ADMIN_USERNAME=me ADMIN_PASSWORD=change-me ./gradlew bootRun
+cp config/example.env config/dev.env   # then point it at your Postgres + RustFS
+./run.sh dev                           # loads config/dev.env, then ./gradlew bootRun
 ```
 
 - API: <http://localhost:8000/api/>
@@ -41,7 +41,8 @@ Flyway creates the schema on startup. `ADMIN_USERNAME` / `ADMIN_PASSWORD` create
 | `./gradlew test --tests BookApiTest` | One test class |
 | `./gradlew test --tests 'BookApiTest$Pagination'` | One `@Nested` group |
 | `./gradlew bootJar` | Build `build/libs/ziantsabit-be-1.0.0.jar` |
-| `docker compose up --build` | The API in a container, against the servers named in `.env` |
+| `./run.sh <dev\|stg\|prod>` | `bootRun` with `config/<env>.env` loaded; extra arguments go to `bootRun` |
+| `./run.sh <dev\|stg\|prod> --docker` | The API in a container with that file (`stg`/`prod` add the production override); extra arguments go to `docker compose up` |
 
 ## Project layout
 
@@ -144,7 +145,9 @@ A refused anonymous write is a `403`, never a `401`, so browsers never show thei
 
 ## Configuration
 
-Everything is set by environment variables, read in `src/main/resources/application.yml`. The defaults suit local development. The names are the ones the Django deployment used, so an existing `.env` keeps working. Copy [`.env.example`](.env.example) to get started.
+Everything is set by environment variables, read in `src/main/resources/application.yml`. The defaults suit local development. The names are the ones the Django deployment used, so an existing `.env` keeps working.
+
+Each environment's values live in `config/<env>.env` — `dev.env`, `stg.env`, `prod.env`, all gitignored — and `./run.sh <env>` loads one. Copy [`config/example.env`](config/example.env) to get started. Write the files with the Compose names (`RUSTFS_*`, `SITE_ORIGINS`, `MEDIA_ORIGIN`, `host.docker.internal`): for a host run, `run.sh` maps them onto the names below, so one file serves both modes.
 
 | Variable | Default | |
 | --- | --- | --- |
@@ -193,17 +196,18 @@ Each test starts from a clean database (only the seeded pages). Three callers ar
 ## Docker and deployment
 
 ```bash
-docker compose up --build
+./run.sh dev --docker     # = docker compose --env-file config/dev.env up --build
 ```
 
-Starts `api` only. Postgres and RustFS are your own servers, named in `.env`: `POSTGRES_HOST`, `POSTGRES_PASSWORD`, `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` and `AWS_S3_ENDPOINT_URL` are required (see [`.env.example`](.env.example)). From inside the container, a server on the Docker host is `host.docker.internal`. The bucket must already exist, be public-read on its objects (`s3:GetObject`, not `s3:ListBucket`) and allow cross-origin `GET`/`HEAD` — the admin's story cards draw covers onto a canvas, which needs it.
+Starts `api` only. Postgres and RustFS are your own servers, named in the env file: `POSTGRES_HOST`, `POSTGRES_PASSWORD`, `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` and `AWS_S3_ENDPOINT_URL` are required (see [`config/example.env`](config/example.env)). From inside the container, a server on the Docker host is `host.docker.internal`. The bucket must already exist, be public-read on its objects (`s3:GetObject`, not `s3:ListBucket`) and allow cross-origin `GET`/`HEAD` — the admin's story cards draw covers onto a canvas, which needs it.
 
 There is no `depends_on`: if Postgres is still booting, Flyway fails, the container exits and `restart: unless-stopped` retries until it connects. The image is built from source in two stages (Gradle on a JDK, then a JRE-only runtime) and runs as UID 1000. There is no source mount, so for an edit loop use `./gradlew bootRun`.
 
-**Production** layers an override on top and reads secrets from `.env`:
+**Production** (and staging) layers an override on top, reading secrets from `config/prod.env` (or `stg.env`):
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+./run.sh prod --docker -d
+# = docker compose --env-file config/prod.env -f docker-compose.yml -f docker-compose.prod.yml up --build -d
 ```
 
 It additionally requires `DJANGO_ALLOWED_HOSTS`, `SITE_ORIGINS` and `MEDIA_ORIGIN`, and binds the API to `127.0.0.1:8000` for the Cloudflare tunnel.

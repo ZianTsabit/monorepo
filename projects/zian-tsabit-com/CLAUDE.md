@@ -25,12 +25,11 @@ docker compose up --build   # multi-stage build -> nginx on :8080
 Backend (run from `ziantsabit-be/`):
 
 ```bash
-set -a; source .env; set +a        # point a host run at your Postgres + RustFS
-./gradlew bootRun                  # API on :8000, Swagger at /api/docs/; Flyway migrates on start
+./run.sh dev                       # loads config/dev.env, then bootRun: API on :8000, Swagger at /api/docs/
+./run.sh prod --docker -d          # container with config/prod.env (+ docker-compose.prod.yml for stg/prod)
 ./gradlew test                     # whole suite (embedded Postgres, no Docker needed)
 ./gradlew test --tests BookApiTest # one class; 'BookApiTest$Pagination' for one @Nested group
 ./gradlew bootJar                  # build/libs/ziantsabit-be-1.0.0.jar
-docker compose up --build          # api only; Postgres and RustFS are external, set in .env
 ```
 
 No test runner is configured for the frontend.
@@ -198,6 +197,8 @@ Things that follow from Django's schema:
 Every API test extends `support/ApiTestBase`: a real server on a random port, a real Postgres (zonky embedded binaries, started once per JVM) with the real migrations, and a fresh state per test (tables truncated, pages reseeded, throttles reset). Callers are `support/Api` instances over `java.net.http` — `client` (anonymous), `owner()` (basic auth, which skips CSRF as DRF's `force_authenticate` did), and `browser()` (keeps cookies, for the session/CSRF tests). Fixtures go through the services' `save()` so slugs and publish-stamping happen as in production; `update(table, id, columns)` writes columns directly for what the API cannot (view counts, timestamps). A test that needs different properties (rate limits, upload size) is its own class with `@TestPropertySource`, and so its own Spring context.
 
 ### Settings and the container
+
+**Per-environment values are in `ziantsabit-be/config/<env>.env`** (`dev`, `stg`, `prod`; gitignored, only `example.env` is tracked), loaded by `run.sh`. They are written with the Compose names; for a host run `run.sh` maps `RUSTFS_*`, `SITE_ORIGINS` and `MEDIA_ORIGIN` onto the app's names and `host.docker.internal` onto `localhost`. A new compose-only rename needs the same mapping added there.
 
 Everything environment-specific is in `application.yml`, reading the **same variable names the Django deployment used** (`POSTGRES_*`, `CORS_ALLOWED_ORIGINS`, `AWS_S3_*`, …; `DJANGO_ALLOWED_HOSTS` is read as a fallback for `ALLOWED_HOSTS`), so `docker-compose.prod.yml` works with the existing `.env` unchanged. `DJANGO_SECRET_KEY` is no longer used.
 

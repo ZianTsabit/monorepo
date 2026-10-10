@@ -2,6 +2,7 @@
 .gitignore
 .env
 .env.example
+config/
 # Build output and caches from a host `./gradlew build`; the image compiles
 # its own.
 build/
