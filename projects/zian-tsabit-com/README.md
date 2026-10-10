@@ -62,6 +62,8 @@ Routing is client-side, so `dist/` contains no `about.html` — any static host 
 
 ## Backend
 
+Full documentation is in [`ziantsabit-be/README.md`](ziantsabit-be/README.md); the essentials follow.
+
 All commands run from `ziantsabit-be/`. It is a Spring Boot app over Postgres, with no in-memory fallback, so start a database first — the compose file's `db` service is published on `127.0.0.1:5432` with the credentials the app defaults to:
 
 ```bash
