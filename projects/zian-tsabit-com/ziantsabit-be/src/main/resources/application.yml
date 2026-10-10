@@ -1,0 +1,133 @@
+# Every value that differs between environments reads an environment variable,
+# under the same name the Django backend used where there was one -- so the
+# compose files and an existing `.env` keep working across the switch. The
+# defaults are the local-development ones, matching docker-compose.yml.
+
+spring:
+  application:
+    name: ziantsabit-be
+
+  # Postgres only, as before: there is no embedded or in-memory fallback, so a
+  # bare `./gradlew bootRun` needs a reachable server (the compose file's
+  # `db` service publishes one on 127.0.0.1:5432).
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:zian_tsabit_be}
+    username: ${POSTGRES_USER:zian_tsabit_be}
+    password: ${POSTGRES_PASSWORD:postgres}
+    hikari:
+      data-source-properties:
+        # libpq semantics: `prefer` silently falls back to plaintext, so a
+        # database across a network wants `require` or `verify-full`. See
+        # docker-compose.external-db.yml.
+        sslmode: ${POSTGRES_SSLMODE:prefer}
+        # Only read for verify-ca / verify-full.
+        sslrootcert: ${POSTGRES_SSLROOTCERT:}
+
+  flyway:
+    # The production database was built by Django and has no Flyway history.
+    # Baselining at 0 rather than 1 means V1 still runs against it -- and V1 is
+    # all IF NOT EXISTS, so it finds every table in place and changes nothing.
+    baseline-on-migrate: true
+    baseline-version: "0"
+    # The seed migration carries page content verbatim; nothing in it is a
+    # placeholder.
+    placeholder-replacement: false
+
+  session:
+    jdbc:
+      # V3__spring_session.sql creates the tables.
+      initialize-schema: never
+
+  jackson:
+    # The API's field names are snake_case, as DRF's were and as the SPA reads
+    # them. Map keys (error bodies, page documents) are left exactly as written.
+    property-naming-strategy: SNAKE_CASE
+
+  servlet:
+    multipart:
+      # The policy limit is `app.uploads.max-size`, checked by the upload
+      # endpoint after it has looked at the bytes, so a 12 MB *non*-image is
+      # reported as the wrong file type rather than as too big. This is only the
+      # ceiling past which the server will not even read the request.
+      max-file-size: 64MB
+      max-request-size: 65MB
+
+server:
+  port: 8000
+  # `native` behind cloudflared or any TLS-terminating proxy: Tomcat then takes
+  # the scheme and client address from X-Forwarded-*, but only when the request
+  # arrives from a private address. Off by default, as USE_X_FORWARDED_PROTO
+  # was, because a header a client can send is only trustworthy behind a proxy.
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:none}
+  servlet:
+    session:
+      # Django's SESSION_COOKIE_AGE: two weeks.
+      timeout: 14d
+      cookie:
+        name: sessionid
+        http-only: true
+        max-age: 14d
+        # Lax is enough while the SPA and the API share a registrable domain
+        # (ziantsabit.com / api.ziantsabit.com): their requests are cross-origin
+        # but not cross-site. Anything else needs None, which browsers only
+        # honour together with Secure.
+        same-site: ${SESSION_COOKIE_SAMESITE:lax}
+        secure: ${SESSION_COOKIE_SECURE:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+springdoc:
+  api-docs:
+    path: /api/schema
+  swagger-ui:
+    path: /api/docs
+  # Only the API proper; the actuator is an implementation detail.
+  paths-to-match: /api/**
+
+app:
+  # Space-separated, like DJANGO_ALLOWED_HOSTS, which is still read so an
+  # existing .env carries over. A leading dot matches subdomains; `*` anything.
+  allowed-hosts: ${ALLOWED_HOSTS:${DJANGO_ALLOWED_HOSTS:localhost 127.0.0.1 [::1]}}
+
+  # The SPA is always on another origin than the API -- Vite on :5173,
+  # `npm run preview` on :4173, the nginx container on :8080 -- so without these
+  # every browser request dies at preflight. Set to the real site in production.
+  cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173 http://127.0.0.1:5173 http://localhost:4173 http://127.0.0.1:4173 http://localhost:8080 http://127.0.0.1:8080}
+  # Origins allowed to make a session-authenticated write. Defaults to the CORS
+  # list: the SPA allowed to read the API is the one that has to write to it.
+  csrf-trusted-origins: ${CSRF_TRUSTED_ORIGINS:${app.cors-allowed-origins}}
+  csrf-cookie-same-site: ${CSRF_COOKIE_SAMESITE:Lax}
+  csrf-cookie-secure: ${CSRF_COOKIE_SECURE:false}
+
+  # Requests per window for the two routes a stranger can write to, in DRF's
+  # "<count>/<second|minute|hour|day>" syntax.
+  comment-rate-limit: ${COMMENT_RATE_LIMIT:20/hour}
+  reaction-rate-limit: ${REACTION_RATE_LIMIT:60/min}
+
+  # Largest image the upload endpoint accepts, in bytes.
+  max-upload-size: ${MAX_UPLOAD_SIZE:10485760}
+
+  # Creates this account on startup if no user by that name exists yet -- the
+  # replacement for `manage.py createsuperuser`. An existing account is never
+  # touched, so leaving these set does not reset a password changed since.
+  admin-username: ${ADMIN_USERNAME:}
+  admin-password: ${ADMIN_PASSWORD:}
+  # PBKDF2 rounds for newly hashed passwords; Django 6.0's own default, so a
+  # hash written here is one Django would accept unchanged.
+  password-iterations: 1200000
+
+  storage:
+    bucket: ${AWS_STORAGE_BUCKET_NAME:ziantsabit-media}
+    access-key: ${AWS_S3_ACCESS_KEY_ID:rustfsadmin}
+    secret-key: ${AWS_S3_SECRET_ACCESS_KEY:rustfsadmin}
+    region: ${AWS_S3_REGION_NAME:us-east-1}
+    # API -> storage. Inside Docker this is http://rustfs:9000.
+    endpoint: ${AWS_S3_ENDPOINT_URL:http://localhost:9000}
+    # browser -> storage, written into the URL of every upload. Differs from
+    # the endpoint whenever the API reaches the bucket by a name the browser
+    # cannot resolve, which is exactly the case inside Docker.
+    public-endpoint: ${AWS_S3_PUBLIC_ENDPOINT_URL:${app.storage.endpoint}}

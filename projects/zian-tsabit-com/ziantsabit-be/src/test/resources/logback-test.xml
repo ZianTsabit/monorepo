@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Spring Boot's own console logging, minus the embedded Postgres's chatter
+     (initdb and server output, which arrives before Spring configures logging)
+     and the test framework's per-class bootstrapping notes. -->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/base.xml"/>
+    <logger name="io.zonky.test" level="WARN"/>
+    <logger name="org.springframework.test.context" level="WARN"/>
+    <logger name="org.springframework.boot.test.context" level="WARN"/>
+</configuration>
