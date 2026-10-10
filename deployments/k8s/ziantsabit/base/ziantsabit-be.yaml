@@ -41,7 +41,8 @@ spec:
             - configMapRef:
                 name: ziantsabit-be
             # POSTGRES_PASSWORD, AWS_S3_ACCESS_KEY_ID, AWS_S3_SECRET_ACCESS_KEY,
-            # optionally ADMIN_USERNAME/ADMIN_PASSWORD. Created by hand.
+            # optionally ADMIN_PASSWORD: whatever the backend's config/<env>.env
+            # takes from Vault. Created with vault-env.sh -- see ../README.md.
             - secretRef:
                 name: ziantsabit-be
           resources:

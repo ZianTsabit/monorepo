@@ -5,7 +5,8 @@
 #   ./run.sh stg --docker -d        docker compose up --build, detached
 #
 # Anything after the environment (and --docker) is passed on to bootRun or to
-# `docker compose up`. See config/example.env for what a file holds.
+# `docker compose up`. See config/example.env for what a file holds, and
+# vault-env.sh for values kept in Vault.
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -23,14 +24,16 @@ esac
 shift
 
 file="config/$env.env"
-if [[ ! -f "$file" ]]; then
-    echo "$file not found: copy config/example.env to it and fill it in" >&2
-    exit 1
-fi
+# shellcheck source=vault-env.sh
+source ./vault-env.sh
+load_env "$env"
 
 if [[ "${1:-}" == "--docker" ]]; then
     shift
-    compose=(docker compose --env-file "$file" -f docker-compose.yml)
+    # The settings are already exported, Vault references resolved, and
+    # Compose interpolates from the environment; /dev/null keeps it from
+    # reading a stray .env as well.
+    compose=(docker compose --env-file /dev/null -f docker-compose.yml)
     # Staging is meant to behave like production: behind the tunnel, with
     # Secure cookies and the real site's origins.
     if [[ "$env" != dev ]]; then
@@ -39,24 +42,9 @@ if [[ "${1:-}" == "--docker" ]]; then
     exec "${compose[@]}" up --build "$@"
 fi
 
-set -a
-# shellcheck source=/dev/null
-source "$file"
-set +a
-
 # The compose files rename a few settings on their way into the container.
-# Do the same here, so one file serves both ways of running. A name the file
-# sets itself wins.
-alias_env() {
-    if [[ -z "${!1:-}" && -n "${!2:-}" ]]; then
-        export "$1=${!2}"
-    fi
-}
-alias_env AWS_S3_ACCESS_KEY_ID RUSTFS_ACCESS_KEY
-alias_env AWS_S3_SECRET_ACCESS_KEY RUSTFS_SECRET_KEY
-alias_env CORS_ALLOWED_ORIGINS SITE_ORIGINS
-alias_env CSRF_TRUSTED_ORIGINS SITE_ORIGINS
-alias_env AWS_S3_PUBLIC_ENDPOINT_URL MEDIA_ORIGIN
+# Do the same here, so one file serves both ways of running.
+export_app_names
 
 # host.docker.internal is how a container reaches this machine; from this
 # machine itself, that is localhost.

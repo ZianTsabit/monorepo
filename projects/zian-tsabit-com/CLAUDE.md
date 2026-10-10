@@ -1,10 +1,10 @@
-# CLAUDE.md
+# CLAUDE.md — zian-tsabit-com
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for this project of the monorepo; the monorepo-wide conventions are in the root `CLAUDE.md`. Paths below are relative to `projects/zian-tsabit-com/` unless they say otherwise.
 
 ## Overview
 
-Personal portfolio website (ziantsabit.com). Two independent sub-projects in one repo, each with its own Dockerfile and docker-compose.yml — there is no root-level build, package manager, or orchestration that ties them together.
+Personal portfolio website (ziantsabit.com). Two independent sub-projects, each with its own Dockerfile and docker-compose.yml — there is no root-level build, package manager, or orchestration that ties them together.
 
 - `ziantsabit-fe/` — React 19 + TypeScript + Vite SPA (the live site)
 - `ziantsabit-be/` — Spring Boot 4 / Java 25 content API (a port of the earlier Django backend, on the same database)
@@ -200,7 +200,7 @@ Every API test extends `support/ApiTestBase`: a real server on a random port, a 
 
 ### Settings and the container
 
-**Per-environment values are in `ziantsabit-be/config/<env>.env`** (`dev`, `stg`, `prod`; gitignored, only `example.env` is tracked), loaded by `run.sh`. They are written with the Compose names; for a host run `run.sh` maps `RUSTFS_*`, `SITE_ORIGINS` and `MEDIA_ORIGIN` onto the app's names and `host.docker.internal` onto `localhost`. A new compose-only rename needs the same mapping added there.
+**Per-environment values are in `ziantsabit-be/config/<env>.env`** (`dev`, `stg`, `prod`; committed), loaded by `run.sh`. **Never write a secret into one**: it is a Vault reference, `NAME=vault:<path>[#field]`, resolved by `vault-env.sh` when `run.sh` loads the file. They are written with the Compose names; for a host run `run.sh` maps `RUSTFS_*`, `SITE_ORIGINS` and `MEDIA_ORIGIN` onto the app's names and `host.docker.internal` onto `localhost`. A new compose-only rename needs the same mapping added there.
 
 Everything environment-specific is in `application.yml`, reading the **same variable names the Django deployment used** (`POSTGRES_*`, `CORS_ALLOWED_ORIGINS`, `AWS_S3_*`, …; `DJANGO_ALLOWED_HOSTS` is read as a fallback for `ALLOWED_HOSTS`), so `docker-compose.prod.yml` works with the existing `.env` unchanged. `DJANGO_SECRET_KEY` is no longer used.
 
@@ -208,7 +208,7 @@ The `Dockerfile` is two stages (a Gradle-wrapper build on `eclipse-temurin:25-jd
 
 **Kubernetes** (`deployments/k8s/ziantsabit/` at the monorepo root, outside this project; steps in its README) is the same image on the k3s cluster, as Kustomize: a shared `base/` and two overlays, namespaces `ziantsabit-stg` and `ziantsabit-prod`, each with one API replica behind a ClusterIP Service. One two-pod `cloudflared` tunnel, in its own `cloudflared` namespace, routes straight to both environments' Services (and to the frontend's, `base/ziantsabit-fe.yaml`). Staging uses the same Postgres and RustFS servers as prod with its own database (`stg_zian_tsabit_be`) and bucket (`stg-ziantsabit-media`). Three things in it are load-bearing:
 
-- **The ConfigMap uses the app's variable names**, not the compose names in `config/<env>.env` — there is no `run.sh` in between to map them, so `RUSTFS_*` becomes `AWS_S3_ACCESS_KEY_ID`/`AWS_S3_SECRET_ACCESS_KEY` in the hand-made Secret.
+- **The ConfigMap uses the app's variable names**, not the compose names in `config/<env>.env` — there is no `run.sh` in between to map them, so `RUSTFS_*` becomes `AWS_S3_ACCESS_KEY_ID`/`AWS_S3_SECRET_ACCESS_KEY`. The Secret is `vault-env.sh <env>`'s output: the file's Vault-backed values, renamed the same way (`APP_ALIASES`).
 - **One replica**, because the rate limits are in-memory per pod.
 - **The tunnel bypasses Traefik.** `FORWARD_HEADERS_STRATEGY=native` trusts `X-Forwarded-For` from any private address; Traefik by default overwrites it with the caller's pod IP, which would put every visitor in one rate-limit bucket. Route through Traefik only after setting its `forwardedHeaders.trustedIPs`.
 

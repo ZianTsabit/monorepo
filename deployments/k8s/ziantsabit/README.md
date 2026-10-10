@@ -38,8 +38,9 @@ Both use the same Postgres and RustFS servers. Postgres names use `_`, not
 
 Each environment's API settings are generated into a ConfigMap whose name ends
 in a hash of its contents, so editing an `.env` file and re-applying rolls the
-API by itself -- no `rollout restart`. Secrets are never committed: the ones
-below are created by hand, one set per namespace.
+API by itself -- no `rollout restart`. Secrets are never committed: the API's
+come from Vault, through the backend's `config/<env>.env` references, and
+cloudflared's is created by hand.
 
 To see exactly what an overlay produces, or what applying it would change:
 
@@ -112,17 +113,15 @@ Every command below is run from the monorepo root.
 
    kubectl -n cloudflared create secret generic cloudflared --from-literal=token=<tunnel token>
 
-   kubectl -n ziantsabit-stg create secret generic ziantsabit-be \
-     --from-literal=POSTGRES_PASSWORD='<stg password>' \
-     --from-literal=AWS_S3_ACCESS_KEY_ID='<stg bucket access key>' \
-     --from-literal=AWS_S3_SECRET_ACCESS_KEY='<stg bucket secret key>'
-
-   # prod's values, mapped from the compose names in the backend's config/prod.env
-   set -a; source projects/zian-tsabit-com/ziantsabit-be/config/prod.env; set +a
-   kubectl -n ziantsabit-prod create secret generic ziantsabit-be \
-     --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-     --from-literal=AWS_S3_ACCESS_KEY_ID="$RUSTFS_ACCESS_KEY" \
-     --from-literal=AWS_S3_SECRET_ACCESS_KEY="$RUSTFS_SECRET_KEY"
+   # Every Vault reference in config/<env>.env, fetched and renamed to the
+   # app's names (RUSTFS_* -> AWS_S3_*). Rerun after rotating a value in
+   # Vault, then `kubectl -n ziantsabit-<env> rollout restart deploy/ziantsabit-be`.
+   for env in stg prod; do
+     projects/zian-tsabit-com/ziantsabit-be/vault-env.sh $env \
+       | kubectl -n ziantsabit-$env create secret generic ziantsabit-be \
+           --from-env-file=/dev/stdin --dry-run=client -o yaml \
+       | kubectl apply -f -
+   done
    ```
 
 5. **Add staging's public hostnames** to the tunnel in the Cloudflare
