@@ -15,6 +15,7 @@ visitor -> Cloudflare -> cloudflared (2 pods)
 | `ziantsabit-be.yaml` | The API: the non-secret ConfigMap, the Deployment and its ClusterIP Service |
 | `ziantsabit-fe.yaml` | The SPA: nginx Deployment and its ClusterIP Service; no ConfigMap, the API URL is baked into the image |
 | `cloudflared.yaml` | The tunnel connector |
+| `external.yaml` | Services `postgres` and `rustfs` for the two servers outside the cluster, each with a hand-written EndpointSlice holding its IP |
 
 Postgres and RustFS stay outside the cluster, as under compose. Secrets are
 never committed: the two Secrets below are created by hand.
@@ -23,8 +24,7 @@ Every command below is run from the monorepo root.
 
 ## First deploy
 
-1. **Fill in `AWS_S3_ENDPOINT_URL`** in the ConfigMap (it ships as `CHANGE-ME`),
-   and check the cluster can reach both servers:
+1. **Fill in the RustFS IP** in `external.yaml` (it ships as `CHANGE-ME`), and check the cluster can reach both servers:
 
    ```bash
    kubectl run nettest --rm -it --image=busybox --restart=Never -- \

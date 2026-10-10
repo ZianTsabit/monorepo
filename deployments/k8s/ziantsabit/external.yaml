@@ -1,0 +1,71 @@
+# In-cluster names for the two servers that live outside the cluster, so the
+# API's ConfigMap says `postgres` and `rustfs` instead of raw addresses, and a
+# server moving means editing an address here rather than the app's config.
+#
+# Each is a Service with no selector -- it matches no pods -- plus an
+# EndpointSlice, written by hand, holding the server's real address. The
+# Service gets a ClusterIP and a DNS name like any other; kube-proxy forwards
+# to the address in the slice. (ExternalName would be simpler but only takes a
+# DNS name, and these servers are known by IP.)
+#
+# The slice's port `name` must match the Service's port name, and its
+# `kubernetes.io/service-name` label is what ties it to the Service.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: ziantsabit
+spec:
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: postgres
+  namespace: ziantsabit
+  labels:
+    kubernetes.io/service-name: postgres
+    # Anything but the controller's own value, so it leaves this slice alone.
+    endpointslice.kubernetes.io/managed-by: ziantsabit-manifests
+addressType: IPv4
+ports:
+  - name: postgres
+    port: 5432
+    protocol: TCP
+endpoints:
+  - addresses:
+      - "10.0.0.50"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rustfs
+  namespace: ziantsabit
+spec:
+  ports:
+    - name: s3
+      port: 9000
+      targetPort: 9000
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: rustfs
+  namespace: ziantsabit
+  labels:
+    kubernetes.io/service-name: rustfs
+    endpointslice.kubernetes.io/managed-by: ziantsabit-manifests
+addressType: IPv4
+ports:
+  - name: s3
+    port: 9000
+    protocol: TCP
+endpoints:
+  # The RustFS server's IP. The API server rejects this slice until it is a
+  # real address, so a forgotten placeholder fails the apply loudly.
+  - addresses:
+      - "CHANGE-ME"

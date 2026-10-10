@@ -13,19 +13,21 @@ metadata:
   name: ziantsabit-be
   namespace: ziantsabit
 data:
-  POSTGRES_HOST: "10.0.0.50"
+  # Services in external.yaml, which hold the real addresses.
+  POSTGRES_HOST: postgres
   POSTGRES_PORT: "5432"
   POSTGRES_DB: zian_tsabit_be
   POSTGRES_USER: zian_tsabit_be
   # `require` encrypts without checking the server. For verify-full, put the CA
   # in a Secret, mount it at /etc/ssl/postgres-ca.crt and add
-  # POSTGRES_SSLROOTCERT pointing there.
+  # POSTGRES_SSLROOTCERT pointing there -- and the server's certificate must
+  # then name `postgres`, or POSTGRES_HOST must go back to the name it has.
   POSTGRES_SSLMODE: require
 
   AWS_STORAGE_BUCKET_NAME: ziantsabit-media
   # API -> storage, as a pod reaches it. Must be set: the default is
   # localhost:9000, which inside a pod is the pod itself.
-  AWS_S3_ENDPOINT_URL: "http://CHANGE-ME:9000"
+  AWS_S3_ENDPOINT_URL: http://rustfs:9000
   # browser -> storage, written into the stored URL of every upload. Must stay
   # what it was under compose, or every image already published 404s.
   AWS_S3_PUBLIC_ENDPOINT_URL: https://media.ziantsabit.com
