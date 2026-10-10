@@ -204,6 +204,14 @@ Everything environment-specific is in `application.yml`, reading the **same vari
 
 The `Dockerfile` is two stages (a Gradle-wrapper build on `eclipse-temurin:25-jdk`, then `eclipse-temurin:25-jre`), running as UID 1000. There is no entrypoint script: Flyway migrates at startup. **Postgres and RustFS are not in the compose stack** — they are separate, already-running servers named in `.env` (`POSTGRES_HOST`, `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY`, `AWS_S3_ENDPOINT_URL`; `host.docker.internal` reaches the Docker host), and the bucket is created and made public-read by hand. With nothing to `depends_on`, a Postgres still booting fails Flyway and `restart: unless-stopped` retries. The healthcheck is `curl /actuator/health`, which is exempt from the allowed-hosts check because the container probes itself on 127.0.0.1.
 
+**Kubernetes** (`ziantsabit-be/k8s/`, steps in its README) is the same image on the k3s cluster: namespace `ziantsabit`, one API replica behind a ClusterIP Service, and a two-pod `cloudflared` tunnel that routes straight to that Service. Three things in it are load-bearing:
+
+- **The ConfigMap uses the app's variable names**, not the compose names in `config/<env>.env` — there is no `run.sh` in between to map them, so `RUSTFS_*` becomes `AWS_S3_ACCESS_KEY_ID`/`AWS_S3_SECRET_ACCESS_KEY` in the hand-made Secret.
+- **One replica**, because the rate limits are in-memory per pod.
+- **The tunnel bypasses Traefik.** `FORWARD_HEADERS_STRATEGY=native` trusts `X-Forwarded-For` from any private address; Traefik by default overwrites it with the caller's pod IP, which would put every visitor in one rate-limit bucket. Route through Traefik only after setting its `forwardedHeaders.trustedIPs`.
+
+Probes use `/actuator/health/liveness` and `/readiness`, which Spring Boot enables itself on Kubernetes and which the allowed-hosts exemption (a path prefix) already covers.
+
 ## Frontend/backend seam
 
 **This repo's frontend predates the backend it now talks to.** The section below describes the SPA as it is here, built against an early API with a fixed `?category=` filter. The backend (Django's final version, and this port of it) replaced categories with free-form `tags`, and added books, comments, reactions, page content and uploads — the newer SPA that uses those lives in the original `zian-tsabit-com` repository and has not been brought into this monorepo. Against this backend, `?category=` is simply ignored.

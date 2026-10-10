@@ -214,6 +214,8 @@ It additionally requires `DJANGO_ALLOWED_HOSTS`, `SITE_ORIGINS` and `MEDIA_ORIGI
 
 The container health check is `GET /actuator/health`.
 
+**Kubernetes.** [`k8s/`](k8s/) runs the same image on the k3s cluster behind an in-cluster `cloudflared`, with the env as a ConfigMap plus a hand-made Secret. See [`k8s/README.md`](k8s/README.md) for the first deploy, the cut-over from compose and releases.
+
 ## Coming from Django
 
 This API replaced a Django + DRF backend in October 2026. Switching is a drop-in on the same database:

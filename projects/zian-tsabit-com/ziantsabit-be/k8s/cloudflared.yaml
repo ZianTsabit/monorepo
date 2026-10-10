@@ -1,0 +1,70 @@
+# The Cloudflare Tunnel connector: the only way into the API from outside.
+#
+# A remotely-managed tunnel -- its public hostnames are configured in the
+# Cloudflare dashboard, and this only needs the tunnel token (Secret
+# `cloudflared`, key `token`, created by hand). Route api.ziantsabit.com to
+#
+#   http://ziantsabit-be.ziantsabit.svc.cluster.local:8000
+#
+# straight to the Service, not through Traefik -- see FORWARD_HEADERS_STRATEGY
+# in ziantsabit-be.yaml for why.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: ziantsabit
+spec:
+  # Two connectors on different nodes, so draining one node keeps the site up.
+  # Cloudflare balances between connectors of the same tunnel on its own.
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cloudflared
+  template:
+    metadata:
+      labels:
+        app: cloudflared
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: cloudflared
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2026.10.0
+          args:
+            - tunnel
+            - --no-autoupdate
+            # /ready answers 200 once the connector has a live connection to
+            # Cloudflare's edge.
+            - --metrics
+            - 0.0.0.0:2000
+            - run
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflared
+                  key: token
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 2000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3

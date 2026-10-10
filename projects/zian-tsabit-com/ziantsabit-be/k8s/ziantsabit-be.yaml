@@ -1,0 +1,125 @@
+# The API on the k3s cluster. Apply with `kubectl apply -f k8s/` -- see
+# k8s/README.md for the secrets that have to exist first and for the cut-over.
+#
+# As with the compose stack, Postgres and RustFS are separate, already-running
+# servers: nothing here creates the database or the bucket.
+---
+# Everything environment-specific that is not a credential, under the app's own
+# variable names (not the compose names config/prod.env uses -- there is no
+# run.sh here to map one onto the other).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ziantsabit-be
+  namespace: ziantsabit
+data:
+  POSTGRES_HOST: "10.0.0.50"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: zian_tsabit_be
+  POSTGRES_USER: zian_tsabit_be
+  # `require` encrypts without checking the server. For verify-full, put the CA
+  # in a Secret, mount it at /etc/ssl/postgres-ca.crt and add
+  # POSTGRES_SSLROOTCERT pointing there.
+  POSTGRES_SSLMODE: require
+
+  AWS_STORAGE_BUCKET_NAME: ziantsabit-media
+  # API -> storage, as a pod reaches it. Must be set: the default is
+  # localhost:9000, which inside a pod is the pod itself.
+  AWS_S3_ENDPOINT_URL: "http://CHANGE-ME:9000"
+  # browser -> storage, written into the stored URL of every upload. Must stay
+  # what it was under compose, or every image already published 404s.
+  AWS_S3_PUBLIC_ENDPOINT_URL: https://media.ziantsabit.com
+
+  ALLOWED_HOSTS: api.ziantsabit.com
+  CORS_ALLOWED_ORIGINS: https://ziantsabit.com https://www.ziantsabit.com
+  CSRF_TRUSTED_ORIGINS: https://ziantsabit.com https://www.ziantsabit.com
+  SESSION_COOKIE_SECURE: "true"
+  CSRF_COOKIE_SECURE: "true"
+  # Trust X-Forwarded-* from a private address. Safe only because the Service
+  # is ClusterIP and the one thing calling it is cloudflared (cloudflared.yaml),
+  # which forwards the visitor's address. Routing through Traefik instead would
+  # replace that header with cloudflared's pod IP unless Traefik is told to
+  # trust it, collapsing every visitor into one rate-limit bucket.
+  FORWARD_HEADERS_STRATEGY: native
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ziantsabit-be
+  namespace: ziantsabit
+spec:
+  # One pod: the comment and reaction rate limits are counted in memory, so N
+  # replicas would allow N times the limit. Sessions are in Postgres and Flyway
+  # takes a lock, so scaling up is otherwise safe.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ziantsabit-be
+  template:
+    metadata:
+      labels:
+        app: ziantsabit-be
+    spec:
+      # Uncomment if the GHCR package is private; see k8s/README.md.
+      # imagePullSecrets:
+      #   - name: ghcr
+      securityContext:
+        runAsUser: 1000
+        runAsNonRoot: true
+      containers:
+        - name: api
+          image: ghcr.io/ziantsabit/ziantsabit-be:1.0.0
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: ziantsabit-be
+            # POSTGRES_PASSWORD, AWS_S3_ACCESS_KEY_ID, AWS_S3_SECRET_ACCESS_KEY,
+            # optionally ADMIN_USERNAME/ADMIN_PASSWORD. Created by hand.
+            - secretRef:
+                name: ziantsabit-be
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            # The Dockerfile sizes the heap at 75% of this.
+            limits:
+              memory: 768Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+          # Spring Boot enables the liveness/readiness groups itself when it
+          # detects Kubernetes. Both are under /actuator/health, which WebConfig
+          # exempts from the allowed-hosts check, so probing by pod IP passes.
+          startupProbe:
+            # JVM start plus Flyway: up to three minutes before liveness counts.
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ziantsabit-be
+  namespace: ziantsabit
+spec:
+  # ClusterIP only: nothing outside the cluster reaches the API except through
+  # the tunnel, which is what makes FORWARD_HEADERS_STRATEGY=native safe.
+  selector:
+    app: ziantsabit-be
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
