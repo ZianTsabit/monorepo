@@ -58,7 +58,7 @@ Every command below is run from the monorepo root.
 
    ```bash
    kubectl run nettest --rm -it --image=busybox --restart=Never -- \
-     sh -c 'nc -zvw3 10.0.0.50 5432; nc -zvw3 <rustfs-host> 9000'
+     sh -c 'nc -zvw3 192.168.0.113 5432; nc -zvw3 192.168.0.111 9000'
    ```
 
 2. **Create staging's database and bucket.** Nothing here creates them. On the
