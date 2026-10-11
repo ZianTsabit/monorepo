@@ -11,11 +11,12 @@ ZianTsabit's personal monorepo: the applications, the manifests that run them on
 | `projects/<name>/` | One application per directory, self-contained: its own build, Dockerfile, compose files, `.gitignore`, `README.md` and `CLAUDE.md`. **Read the project's `CLAUDE.md` before working in it** — the conventions that matter are there, not here. |
 | `deployments/k8s/<name>/` | Kustomize manifests for a project on the cluster, with a `README.md` holding the deploy steps. Kept out of `projects/` so the cluster-side config lives in one place. |
 | `notes/` | Reference notes, by topic (`notes/kubernetes/`). Written as explanations, with examples pointing at the real manifests in `deployments/`. |
-| `learnings/` | Small learning projects and learning plans. `learnings/k3s/` is the plan for the cluster; `learnings/spark/` is a Spark lab whose manifests run on it (kept here, not in `deployments/`). |
+| `learnings/` | Learning plans only, one directory per topic (`learnings/k3s/`, `learnings/spark/`). Code a plan uses goes in `projects/`, manifests in `deployments/k8s/`; the plan links to them. |
 
 Current projects:
 
 - `projects/zian-tsabit-com/` — ziantsabit.com: `ziantsabit-fe/` (React + Vite SPA) and `ziantsabit-be/` (Spring Boot API), deployed by `deployments/k8s/ziantsabit/`.
+- `projects/spark/` — PySpark jobs for learning Spark (plan in `learnings/spark/`), run on the cluster by `deployments/k8s/spark/`.
 
 ## Adding a project
 
@@ -27,7 +28,7 @@ Current projects:
 
 The cluster is k3s: one server (`k8s-cp1`) and two agents (`k8s-w1`, `k8s-w2`); `notes/kubernetes/architecture.md` has the details. Public traffic arrives through a Cloudflare tunnel (`cloudflared`), not an exposed ingress.
 
-A deployment directory is Kustomize: a shared `base/` and one overlay per environment under `overlays/` (`stg`, `prod`), each in its own namespace, `<name>-<env>`. Non-secret settings are `.env` files turned into a ConfigMap by a generator, so editing one and re-applying rolls the pods.
+A deployment directory is Kustomize: a shared `base/` and one overlay per environment under `overlays/` (`stg`, `prod`), each in its own namespace, `<name>-<env>`. (`deployments/k8s/spark/`, a single-environment learning lab, is the exception: `operator/`, `lab/` and `apps/`, no overlays.) Non-secret settings are `.env` files turned into a ConfigMap by a generator, so editing one and re-applying rolls the pods.
 
 ```bash
 kubectl kustomize deployments/k8s/<name>/overlays/stg    # render what an overlay produces

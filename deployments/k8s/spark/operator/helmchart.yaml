@@ -5,8 +5,8 @@
 #
 # Two pods result: the controller (turns a SparkApplication into a
 # spark-submit) and the webhook (patches driver/executor pods with the fields
-# spark-submit can't express -- affinity, envFrom, priorityClassName, mounted
-# ConfigMaps. With it off, those fields in ../apps/ are silently ignored).
+# spark-submit can't express -- affinity, envFrom, priorityClassName). With
+# it off, those fields in ../apps/ are silently ignored.
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:

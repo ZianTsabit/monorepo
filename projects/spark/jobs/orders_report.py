@@ -5,7 +5,7 @@ The same file runs everywhere; only the paths change:
     # laptop, local files
     uv run jobs/orders_report.py data/orders.csv out/
 
-    # cluster, RustFS (see k8s/apps/orders-report.yaml)
+    # cluster, RustFS (see deployments/k8s/spark/apps/ at the monorepo root)
     orders_report.py s3a://spark-lab/raw/orders.csv s3a://spark-lab/reports/
 
 On the laptop there is no --master, so it runs in local[*] mode: one JVM, a

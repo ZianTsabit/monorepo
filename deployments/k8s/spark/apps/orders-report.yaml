@@ -1,7 +1,7 @@
-# One run of jobs/orders_report.py on the cluster: a driver pod plus two
+# One run of projects/spark/jobs/orders_report.py on the cluster: a driver pod plus two
 # executor pods, reading and writing RustFS.
 #
-#   kubectl apply -f learnings/spark/k8s/apps/orders-report.yaml
+#   kubectl apply -f deployments/k8s/spark/apps/orders-report.yaml
 #   kubectl -n spark get sparkapp orders-report -w
 #   kubectl -n spark logs -f orders-report-driver
 #
@@ -21,13 +21,15 @@ spec:
   type: Python
   pythonVersion: "3"
   mode: cluster
-  # image/Dockerfile: the official image plus the S3A jars. If the GHCR
-  # package is private, add `imagePullSecrets: [ghcr]` and create that secret
-  # in this namespace (as in deployments/k8s/ziantsabit/README.md).
-  image: ghcr.io/ziantsabit/spark-s3a:4.2.0
+  # projects/spark/Dockerfile: the official Spark image plus the S3A jars and
+  # the job code. A release is a tag bump here. If the GHCR package is
+  # private, add `imagePullSecrets: [ghcr]` and create that secret in this
+  # namespace (as in ../../ziantsabit/README.md).
+  image: ghcr.io/ziantsabit/spark-jobs:0.1.0
+  # The Spark version inside that image.
   sparkVersion: 4.2.0
-  # Mounted from the spark-jobs ConfigMap (configMaps: below); local:// means
-  # "already on the pod's filesystem", nothing to upload.
+  # Copied into the image; local:// means "already on the pod's filesystem",
+  # nothing to upload.
   mainApplicationFile: local:///opt/spark/jobs/orders_report.py
   arguments:
     - s3a://spark-lab/raw/orders.csv
@@ -57,9 +59,6 @@ spec:
     envFrom:
       - secretRef:
           name: rustfs-spark
-    configMaps:
-      - name: spark-jobs
-        path: /opt/spark/jobs
     affinity: &off-control-plane
       # k8s-cp1 runs the control plane with little memory to spare.
       nodeAffinity:
@@ -77,7 +76,4 @@ spec:
     envFrom:
       - secretRef:
           name: rustfs-spark
-    configMaps:
-      - name: spark-jobs
-        path: /opt/spark/jobs
     affinity: *off-control-plane

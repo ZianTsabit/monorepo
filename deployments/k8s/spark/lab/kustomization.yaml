@@ -1,0 +1,12 @@
+# The `spark` namespace jobs run in, and the guardrails around it.
+#   kubectl apply -k deployments/k8s/spark/lab
+# The operator (../operator/) must be installed first.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: spark
+resources:
+  - namespace.yaml
+  - priorityclass.yaml
+  - quota.yaml
+  - rbac.yaml
+  - rustfs.yaml

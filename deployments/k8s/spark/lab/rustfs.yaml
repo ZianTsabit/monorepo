@@ -1,6 +1,6 @@
 # In-namespace name for the RustFS server outside the cluster, so jobs say
 # http://rustfs:9000. Same pattern as
-# deployments/k8s/ziantsabit/base/external.yaml (where it's explained):
+# ../../ziantsabit/base/external.yaml (where it's explained):
 # a Service with no selector plus a hand-written EndpointSlice.
 apiVersion: v1
 kind: Service

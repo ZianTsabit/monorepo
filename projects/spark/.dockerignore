@@ -1,0 +1,4 @@
+# Only jobs/ is copied; keep the context small (data/ can be gigabytes).
+*
+!jobs/
+jobs/__pycache__/
