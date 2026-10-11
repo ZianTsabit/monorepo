@@ -1,0 +1,12 @@
+# Below the default of 0 that every other pod gets. When the cluster is out of
+# room, the scheduler preempts (evicts) lower-priority pods to place a
+# higher one -- so a site pod waiting for memory evicts a Spark executor, and
+# never the other way round. Cluster-scoped: the namespace above doesn't apply.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: spark-batch
+value: -100
+globalDefault: false
+preemptionPolicy: Never
+description: Spark lab jobs. Evicted first; never evicts anything itself.

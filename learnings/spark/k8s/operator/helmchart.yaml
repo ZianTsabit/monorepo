@@ -1,0 +1,46 @@
+# k3s watches HelmChart objects in kube-system and runs `helm install` for
+# each in a Job (`kubectl -n kube-system get jobs` shows it, named
+# helm-install-spark-operator). Editing valuesContent and re-applying is an
+# upgrade; deleting this object uninstalls the chart.
+#
+# Two pods result: the controller (turns a SparkApplication into a
+# spark-submit) and the webhook (patches driver/executor pods with the fields
+# spark-submit can't express -- affinity, envFrom, priorityClassName, mounted
+# ConfigMaps. With it off, those fields in ../apps/ are silently ignored).
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: spark-operator
+  namespace: kube-system
+spec:
+  repo: https://kubeflow.github.io/spark-operator
+  chart: spark-operator
+  version: 2.5.2
+  targetNamespace: spark-operator
+  valuesContent: |-
+    spark:
+      # Only SparkApplications in these namespaces are acted on.
+      jobNamespaces:
+        - spark
+      # The ServiceAccount and Role the driver runs as are written by hand
+      # in ../lab/rbac.yaml, to see exactly what a driver needs.
+      serviceAccount:
+        create: false
+      rbac:
+        create: false
+    controller:
+      resources:
+        requests: { cpu: 50m, memory: 64Mi }
+        limits: { memory: 256Mi }
+      affinity: &off-control-plane
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+    webhook:
+      resources:
+        requests: { cpu: 50m, memory: 64Mi }
+        limits: { memory: 256Mi }
+      affinity: *off-control-plane

@@ -1,0 +1,9 @@
+# The Spark operator, installed by k3s's built-in helm-controller -- no helm
+# CLI needed. Apply this first: it installs the SparkApplication CRD that
+# ../apps/ uses.
+#   kubectl apply -k learnings/spark/k8s/operator
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - helmchart.yaml

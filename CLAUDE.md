@@ -11,7 +11,7 @@ ZianTsabit's personal monorepo: the applications, the manifests that run them on
 | `projects/<name>/` | One application per directory, self-contained: its own build, Dockerfile, compose files, `.gitignore`, `README.md` and `CLAUDE.md`. **Read the project's `CLAUDE.md` before working in it** — the conventions that matter are there, not here. |
 | `deployments/k8s/<name>/` | Kustomize manifests for a project on the cluster, with a `README.md` holding the deploy steps. Kept out of `projects/` so the cluster-side config lives in one place. |
 | `notes/` | Reference notes, by topic (`notes/kubernetes/`). Written as explanations, with examples pointing at the real manifests in `deployments/`. |
-| `learnings/` | Small learning projects and learning plans. `learnings/k3s/` is the plan for the cluster. |
+| `learnings/` | Small learning projects and learning plans. `learnings/k3s/` is the plan for the cluster; `learnings/spark/` is a Spark lab whose manifests run on it (kept here, not in `deployments/`). |
 
 Current projects:
 

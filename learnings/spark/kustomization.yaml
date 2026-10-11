@@ -1,0 +1,25 @@
+# The `spark` namespace jobs run in, its guardrails, and the job code.
+#   kubectl apply -k learnings/spark
+# It lives here rather than in k8s/lab/ because Kustomize only reads files
+# under its own directory, and the ConfigMap below needs jobs/.
+#
+# Re-apply after editing anything in jobs/: this ConfigMap is how job code
+# reaches the pods, so a code change needs no image rebuild.
+# The operator (k8s/operator/) must be installed first.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: spark
+resources:
+  - k8s/lab/namespace.yaml
+  - k8s/lab/priorityclass.yaml
+  - k8s/lab/quota.yaml
+  - k8s/lab/rbac.yaml
+  - k8s/lab/rustfs.yaml
+configMapGenerator:
+  - name: spark-jobs
+    files:
+      - jobs/orders_report.py
+# SparkApplication is a CRD, so Kustomize doesn't know to rewrite references
+# to a hash-suffixed name inside it. A fixed name it is.
+generatorOptions:
+  disableNameSuffixHash: true

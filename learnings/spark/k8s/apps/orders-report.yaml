@@ -1,0 +1,83 @@
+# One run of jobs/orders_report.py on the cluster: a driver pod plus two
+# executor pods, reading and writing RustFS.
+#
+#   kubectl apply -f learnings/spark/k8s/apps/orders-report.yaml
+#   kubectl -n spark get sparkapp orders-report -w
+#   kubectl -n spark logs -f orders-report-driver
+#
+# A SparkApplication runs once. Applying it again changes nothing; to re-run,
+# delete it first (`kubectl -n spark delete sparkapp orders-report`), which
+# also removes its pods.
+#
+# Pod sizes, and why they fit the quota in ../lab/quota.yaml:
+#   memory: 512m + 384Mi overhead (Spark's minimum) = 896Mi per pod
+#   3 pods = ~2.6Gi of the 3Gi quota; CPU requests 3 x 500m = 1.5 of 2
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: orders-report
+  namespace: spark
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  # image/Dockerfile: the official image plus the S3A jars. If the GHCR
+  # package is private, add `imagePullSecrets: [ghcr]` and create that secret
+  # in this namespace (as in deployments/k8s/ziantsabit/README.md).
+  image: ghcr.io/ziantsabit/spark-s3a:4.2.0
+  sparkVersion: 4.2.0
+  # Mounted from the spark-jobs ConfigMap (configMaps: below); local:// means
+  # "already on the pod's filesystem", nothing to upload.
+  mainApplicationFile: local:///opt/spark/jobs/orders_report.py
+  arguments:
+    - s3a://spark-lab/raw/orders.csv
+    - s3a://spark-lab/reports/
+  restartPolicy:
+    type: Never
+  # Delete the finished SparkApplication (and its driver pod) after a day.
+  timeToLiveSeconds: 86400
+  hadoopConf:
+    # The rustfs Service in ../lab/rustfs.yaml.
+    fs.s3a.endpoint: http://rustfs:9000
+    fs.s3a.connection.ssl.enabled: "false"
+    # RustFS serves buckets as /bucket/key, not bucket.host/key.
+    fs.s3a.path.style.access: "true"
+    # The AWS SDK insists on a region; RustFS ignores it.
+    fs.s3a.endpoint.region: us-east-1
+    # Credentials: none here. S3A's default provider chain includes the AWS
+    # SDK's environment provider, which reads AWS_ACCESS_KEY_ID and
+    # AWS_SECRET_ACCESS_KEY -- set on both pod kinds from the Secret below.
+  driver:
+    cores: 1
+    # cores is task slots; coreRequest is what the scheduler reserves.
+    coreRequest: 500m
+    memory: 512m
+    serviceAccount: spark
+    priorityClassName: spark-batch
+    envFrom:
+      - secretRef:
+          name: rustfs-spark
+    configMaps:
+      - name: spark-jobs
+        path: /opt/spark/jobs
+    affinity: &off-control-plane
+      # k8s-cp1 runs the control plane with little memory to spare.
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: node-role.kubernetes.io/control-plane
+                  operator: DoesNotExist
+  executor:
+    instances: 2
+    cores: 1
+    coreRequest: 500m
+    memory: 512m
+    priorityClassName: spark-batch
+    envFrom:
+      - secretRef:
+          name: rustfs-spark
+    configMaps:
+      - name: spark-jobs
+        path: /opt/spark/jobs
+    affinity: *off-control-plane

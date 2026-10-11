@@ -1,0 +1,29 @@
+# The hard ceiling for everything in the namespace, whatever a job asks for.
+# Sized to the two workers' spare room (~4 CPU, ~4 GB between them, see
+# `kubectl top nodes`). A pod that would cross it is refused at creation --
+# for an executor that shows up as the driver logging it can't get one, not
+# as a Pending pod.
+#
+# A memory quota makes requests/limits mandatory for every pod here; the
+# LimitRange fills them in for pods that don't say (a debug pod, say).
+# Spark sets its own: memory + overhead, as both request and limit.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: spark
+spec:
+  hard:
+    pods: "5"
+    requests.cpu: "2"
+    requests.memory: 3Gi
+    limits.memory: 3Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: spark
+spec:
+  limits:
+    - type: Container
+      defaultRequest: { cpu: 100m, memory: 128Mi }
+      default: { memory: 256Mi }
