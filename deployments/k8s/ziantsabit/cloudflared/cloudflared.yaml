@@ -1,7 +1,7 @@
-# The Cloudflare Tunnel connector: the only way into either environment from
-# outside. One tunnel serves both, so it lives in its own namespace rather than
-# in either environment's -- tearing down staging can't take prod's way in
-# with it. Apply with `kubectl apply -k deployments/k8s/ziantsabit/cloudflared`.
+# The Cloudflare Tunnel connector: prod's only way in from outside. Staging is
+# not on it -- it is LAN-only, over NodePorts (../overlays/stg). It lives in its
+# own namespace rather than prod's so that it can serve more environments later,
+# and so tearing an environment down can't take the tunnel with it. Apply with `kubectl apply -k deployments/k8s/ziantsabit/cloudflared`.
 #
 # A remotely-managed tunnel -- its public hostnames are configured in the
 # Cloudflare dashboard, and this only needs the tunnel token (Secret
@@ -9,8 +9,6 @@
 #
 #   ziantsabit.com, www.ziantsabit.com -> http://ziantsabit-fe.ziantsabit-prod.svc.cluster.local:80
 #   api.ziantsabit.com                 -> http://ziantsabit-be.ziantsabit-prod.svc.cluster.local:8000
-#   stg.ziantsabit.com                 -> http://ziantsabit-fe.ziantsabit-stg.svc.cluster.local:80
-#   stg-api.ziantsabit.com             -> http://ziantsabit-be.ziantsabit-stg.svc.cluster.local:8000
 #
 # straight to the Services, not through Traefik -- see FORWARD_HEADERS_STRATEGY
 # in ../base/ziantsabit-be.env for why the API's routes must not.

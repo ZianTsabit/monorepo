@@ -69,7 +69,8 @@ kind: Service
 metadata:
   name: ziantsabit-fe
 spec:
-  # ClusterIP only, like the API: the tunnel is the way in.
+  # ClusterIP only, like the API: the tunnel is the way in. The stg overlay
+  # patches both Services to NodePorts instead.
   selector:
     app: ziantsabit-fe
   ports:

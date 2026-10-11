@@ -1,4 +1,7 @@
-# Staging: stg.ziantsabit.com, stg-api.ziantsabit.com.
+# Staging: on the home LAN only, over plain HTTP, with no tunnel or domain.
+#   site http://192.168.0.150:30080   API http://192.168.0.150:30800
+# NodePorts open on every node, so .151 and .152 answer too -- but the SPA's
+# API address and the backend's CORS/CSRF origins name .150, so use that one.
 #   kubectl apply -k deployments/k8s/ziantsabit/overlays/stg
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -11,6 +14,29 @@ configMapGenerator:
     behavior: merge
     envs:
       - ziantsabit-be.env
+patches:
+  # NodePort in place of base's ClusterIP. Ports are fixed so the SPA build arg
+  # and the origins in ziantsabit-be.env stay right across re-applies.
+  - target:
+      kind: Service
+      name: ziantsabit-fe
+    patch: |-
+      - op: add
+        path: /spec/type
+        value: NodePort
+      - op: add
+        path: /spec/ports/0/nodePort
+        value: 30080
+  - target:
+      kind: Service
+      name: ziantsabit-be
+    patch: |-
+      - op: add
+        path: /spec/type
+        value: NodePort
+      - op: add
+        path: /spec/ports/0/nodePort
+        value: 30800
 # Nothing depends on staging staying up through a node drain.
 replicas:
   - name: ziantsabit-fe
@@ -18,6 +44,6 @@ replicas:
 images:
   - name: ghcr.io/ziantsabit/ziantsabit-be
     newTag: 1.0.0
-  # Built with --build-arg VITE_API_BASE_URL=https://stg-api.ziantsabit.com/api.
+  # Built with --build-arg VITE_API_BASE_URL=http://192.168.0.150:30800/api.
   - name: ghcr.io/ziantsabit/ziantsabit-fe
     newTag: 1.0.0-stg

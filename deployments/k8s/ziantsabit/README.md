@@ -2,14 +2,16 @@
 
 The site on the home k3s cluster -- the [`ziantsabit-fe`](../../../projects/zian-tsabit-com/ziantsabit-fe) SPA and the
 [`ziantsabit-be`](../../../projects/zian-tsabit-com/ziantsabit-be) API -- in two environments, production and
-staging, both reached only through one shared Cloudflare Tunnel:
+staging. Production is reached only through a Cloudflare Tunnel; staging has no
+tunnel or domain and is reached on the home LAN by node IP, over plain HTTP:
 
 ```
                                            ziantsabit.com, www    -> ziantsabit-prod: Service ziantsabit-fe :80   -> nginx (2 pods)
-                                           api.ziantsabit.com     -> ziantsabit-prod: Service ziantsabit-be :8000 -> API pod
 visitor -> Cloudflare -> cloudflared ──────
-           (one tunnel)  (ns cloudflared)  stg.ziantsabit.com     -> ziantsabit-stg:  Service ziantsabit-fe :80   -> nginx (1 pod)
-                                           stg-api.ziantsabit.com -> ziantsabit-stg:  Service ziantsabit-be :8000 -> API pod
+           (tunnel)      (ns cloudflared)  api.ziantsabit.com     -> ziantsabit-prod: Service ziantsabit-be :8000 -> API pod
+
+LAN browser -> 192.168.0.150:30080 (NodePort) -> ziantsabit-stg: Service ziantsabit-fe -> nginx (1 pod)
+            -> 192.168.0.150:30800 (NodePort) -> ziantsabit-stg: Service ziantsabit-be -> API pod
 ```
 
 Built with [Kustomize](https://kustomize.io/) (part of `kubectl`, `apply -k`):
@@ -19,16 +21,17 @@ one shared `base/`, and an overlay per environment holding only what differs.
 | --- | --- |
 | `base/` | Everything both environments share: the API and SPA Deployments and Services, `external.yaml` (Services `postgres` and `rustfs` for the two servers outside the cluster, each with a hand-written EndpointSlice holding its IP), and the API settings common to both (`ziantsabit-be.env`) |
 | `overlays/prod/` | Namespace `ziantsabit-prod`, prod's API settings, and the image tags running in prod |
-| `overlays/stg/` | Namespace `ziantsabit-stg`, staging's API settings, its image tags, and one SPA replica instead of two |
-| `cloudflared/` | The tunnel connector, in its own namespace `cloudflared` since it serves both |
+| `overlays/stg/` | Namespace `ziantsabit-stg`, staging's API settings, its image tags, one SPA replica instead of two, and NodePorts in place of ClusterIP |
+| `cloudflared/` | The tunnel connector, in its own namespace `cloudflared` -- prod's only way in |
 
 What differs between the two:
 
 | | prod | stg |
 | --- | --- | --- |
 | Namespace | `ziantsabit-prod` | `ziantsabit-stg` |
-| Site / API | `ziantsabit.com`, `www` / `api.ziantsabit.com` | `stg.ziantsabit.com` / `stg-api.ziantsabit.com` |
-| Media | `media.ziantsabit.com` | `stg-media.ziantsabit.com` |
+| Site / API | `ziantsabit.com`, `www` / `api.ziantsabit.com` | `http://192.168.0.150:30080` / `:30800` (LAN only) |
+| Media | `media.ziantsabit.com` | `http://192.168.0.111:9000` (RustFS directly) |
+| Cookies, forwarded headers | `Secure`, `X-Forwarded-For` trusted | not `Secure` (plain HTTP), not trusted (no proxy) |
 | Database and user | `zian_tsabit_be` | `stg_zian_tsabit_be` |
 | Bucket | `ziantsabit-media` | `stg-ziantsabit-media` |
 | SPA replicas | 2 | 1 |
@@ -71,9 +74,10 @@ Every command below is run from the monorepo root.
 
    In RustFS, create the bucket `stg-ziantsabit-media` with the same public-read
    policy as `ziantsabit-media`, ideally with an access key that can only touch
-   that bucket. Serve it at `stg-media.ziantsabit.com` the same way
-   `media.ziantsabit.com` serves prod's -- upload URLs are path-style,
-   `https://stg-media.ziantsabit.com/stg-ziantsabit-media/<key>`.
+   that bucket. Staging has no media hostname: upload URLs point straight at
+   RustFS and are path-style,
+   `http://192.168.0.111:9000/stg-ziantsabit-media/<key>`, so the public-read
+   policy is what lets a LAN browser load them.
 
 3. **Push the images.** The cluster pulls from GHCR. The API image is the same
    for both environments. The SPA's API address is compiled into its bundle, so
@@ -85,7 +89,7 @@ Every command below is run from the monorepo root.
    docker push ghcr.io/ziantsabit/ziantsabit-be:1.0.0
 
    docker build -t ghcr.io/ziantsabit/ziantsabit-fe:1.0.0-stg \
-     --build-arg VITE_API_BASE_URL=https://stg-api.ziantsabit.com/api projects/zian-tsabit-com/ziantsabit-fe
+     --build-arg VITE_API_BASE_URL=http://192.168.0.150:30800/api projects/zian-tsabit-com/ziantsabit-fe
    docker push ghcr.io/ziantsabit/ziantsabit-fe:1.0.0-stg
 
    docker build -t ghcr.io/ziantsabit/ziantsabit-fe:1.0.0 \
@@ -124,9 +128,11 @@ Every command below is run from the monorepo root.
    done
    ```
 
-5. **Add staging's public hostnames** to the tunnel in the Cloudflare
-   dashboard, as listed at the top of `cloudflared/cloudflared.yaml`:
-   `stg.ziantsabit.com` and `stg-api.ziantsabit.com`.
+5. **Staging needs nothing in Cloudflare.** It is not on the tunnel; its
+   Services are NodePorts (`overlays/stg/kustomization.yaml`), reachable from
+   the LAN only. The SPA's build arg and the API's origins name
+   `192.168.0.150`, so open `http://192.168.0.150:30080` -- the other nodes
+   serve the same ports, but from them the API's CORS check fails.
 
 6. **Watch it come up.** Flyway runs at startup:
 
@@ -134,11 +140,12 @@ Every command below is run from the monorepo root.
    kubectl -n ziantsabit-stg rollout status deploy/ziantsabit-be
    kubectl -n ziantsabit-stg rollout status deploy/ziantsabit-fe
    kubectl -n ziantsabit-stg logs deploy/ziantsabit-be -f
-   kubectl -n ziantsabit-stg port-forward svc/ziantsabit-be 8000:8000   # then curl localhost:8000/actuator/health
+   curl http://192.168.0.150:30800/actuator/health                       # staging, over its NodePort
+   kubectl -n ziantsabit-prod port-forward svc/ziantsabit-be 8000:8000  # prod; then curl localhost:8000/actuator/health
    ```
 
-   The port-forward only answers `/actuator/health`; anything else is a 400
-   because `localhost` is not in `ALLOWED_HOSTS`. Same for `ziantsabit-prod`.
+   The prod port-forward only answers `/actuator/health`; anything else is a
+   400 because `localhost` is not in `ALLOWED_HOSTS`.
 
 ## Cutting over from compose
 
@@ -147,8 +154,8 @@ compose host runs. Connectors of one tunnel share its traffic, so a cluster pod
 and the old host would each get half the requests, and the old host cannot
 resolve a `.svc.cluster.local` route anyway.
 
-Staging needs no cut-over: it has no compose counterpart, so its hostnames go
-straight onto the new tunnel (step 5 above). For prod:
+Staging needs no cut-over: it has no compose counterpart and is not on the
+tunnel at all. For prod:
 
 1. Create the tunnel in the dashboard, put its token in the `cloudflared`
    Secret, and give it throwaway hostnames (e.g. `api-k8s.ziantsabit.com`
@@ -178,7 +185,7 @@ docker build -t ghcr.io/ziantsabit/ziantsabit-be:<version> projects/zian-tsabit-
 
 # SPA -- built per environment, with the build arg every time
 docker build -t ghcr.io/ziantsabit/ziantsabit-fe:<version>-stg \
-  --build-arg VITE_API_BASE_URL=https://stg-api.ziantsabit.com/api projects/zian-tsabit-com/ziantsabit-fe && docker push ghcr.io/ziantsabit/ziantsabit-fe:<version>-stg
+  --build-arg VITE_API_BASE_URL=http://192.168.0.150:30800/api projects/zian-tsabit-com/ziantsabit-fe && docker push ghcr.io/ziantsabit/ziantsabit-fe:<version>-stg
 ```
 
 Set the tags under `images:` in `overlays/stg/kustomization.yaml`, then
