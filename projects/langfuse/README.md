@@ -49,6 +49,30 @@ Reserve that address for the laptop in the router's DHCP settings, or the
 traces stop arriving when it changes. Port 3000 is the only one open to the LAN;
 MinIO is published on 127.0.0.1 only, and the rest not at all.
 
+## What gets traced
+
+- **In-cluster agent runs**, one trace per issue (`issue #N: title`), sent by the
+  agent's publish step ([`projects/agents`](../agents)).
+- **This laptop's Claude Code sessions**, one trace per turn (`Claude Code Turn`,
+  grouped by session), through Langfuse's Claude Code plugin
+  (`langfuse-observability`, configured with `/plugin configure`; base URL
+  `http://localhost:3000`, the keys from Vault).
+
+## Recall: searching past sessions
+
+The traces double as a searchable history:
+
+```bash
+projects/langfuse/bin/recall.sh OOMKilled                 # where did that happen, and what did we do?
+projects/langfuse/bin/recall.sh -n 3 "heap out of memory" langfuse
+projects/langfuse/bin/recall.sh -d 7 -s 5d085242 tunnel   # last week, one session
+```
+
+Keyword search over what each step produced, newest first, local time. Claude Code
+uses it through the `recall` skill (`.claude/skills/recall/`) when asked "how did we
+fix X before?". It's history, not current state -- check the live system before
+acting on what it finds.
+
 ## Upgrading
 
 Image versions are pinned in `compose.yml` (web and worker must match). Bump

@@ -19,3 +19,13 @@ this is what is easy to break.
   laptop.
 - `NEXTAUTH_URL` is `http://localhost:3000` because the UI is used on the laptop.
   The ingestion API answers on any host, which is all the cluster needs.
+- **v4 has no trace read API** (`/api/public/traces` answers "not available in
+  events_only mode"), so `bin/recall.sh` queries ClickHouse's `events_full` table
+  directly, inside the container, with the container's own password. Search terms
+  are ClickHouse query parameters (`{t0:String}`), never spliced into SQL. Don't name
+  a parameter `limit` -- it collides with the ClickHouse setting of that name.
+- **The plugin stores the whole conversation so far as each model call's input**,
+  so searching inputs finds one fact in every later turn. `recall.sh` searches
+  outputs by default for that reason (`-i` adds inputs).
+- The Langfuse web container needs `NODE_OPTIONS=--max-old-space-size=1536` and 2 GB:
+  at the 1 GB default Node capped its heap near 500 MB and crashed on the first login.
