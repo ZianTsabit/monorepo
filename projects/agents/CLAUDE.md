@@ -14,10 +14,13 @@ flow; this file is what is easy to break.
 - **The owner check happens twice** -- the poller filters by author, and
   `run-agent.sh` re-reads the issue and refuses one opened by anyone else. The repo is
   public: anyone can open an issue, only collaborators can label one.
-- **One Job at a time.** The worker nodes have ~3 GB each and ~1.7 GB free; the agent
-  container's 1792Mi limit plus `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=25` is what
-  lets Gradle, its test JVM, embedded Postgres and Claude Code fit. Raising
-  concurrency needs bigger nodes first.
+- **Never on the control plane, one Job at a time.** The first run landed on
+  `k8s-cp1` (2 GB then), filled it, and stalled the API server and CoreDNS -- the
+  whole site went down until the VM was hard-stopped. Jobs now run only on nodes
+  labelled `agents=true` (`k8s-w2`) and request their full 1792Mi, so the scheduler
+  can't overcommit. That budget plus `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=25` is
+  what lets Gradle, its test JVM, embedded Postgres and Claude Code fit. Don't lower
+  the request below the limit, and don't drop the node affinity.
 - **Credentials are scrubbed, not trusted.** `run-agent.sh` refuses to hand over a
   report or tree containing the Claude credential's value; it does not filter
   anything else, so the agent must have nothing else worth leaking (no kubeconfig,

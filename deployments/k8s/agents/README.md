@@ -11,6 +11,20 @@ cluster, in namespace `agents`. One environment, no overlays.
 | `poller.yaml` | CronJob `issue-poller`, every 3 minutes, `concurrencyPolicy: Forbid` |
 | `job-template.yaml` | Not applied: mounted into the poller, which fills it in with `envsubst` for each issue |
 
+## Which node runs the agent
+
+Agent Jobs only schedule on nodes labelled `agents=true` and never on the control
+plane (an agent run once filled `k8s-cp1` and took the site down). The label lives on
+the node, not in git -- currently `k8s-w2`, with ~4.8 GB:
+
+```bash
+kubectl label node k8s-w2 agents=true          # allow
+kubectl label node k8s-w2 agents-              # disallow; Jobs then stay Pending
+```
+
+Each run requests its whole 1792Mi budget. To reserve a node for agents only, also
+`kubectl taint node <node> agents=true:NoSchedule`; the Jobs tolerate it.
+
 ## Secrets
 
 Never committed. Kept in Vault at `kv/k3s/agents`:
