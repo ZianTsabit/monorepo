@@ -4,6 +4,7 @@ import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { Box } from "@mui/material";
 import { MONO_FONT } from "../theme";
+import MermaidDiagram from "./MermaidDiagram";
 
 /**
  * KaTeX, loaded on demand -- see `mathPlugins.ts` for why it is a chunk.
@@ -129,6 +130,61 @@ function heading(level: keyof typeof HEADINGS) {
   };
 }
 
+function CodeBlock({ children }: { children?: ReactNode }) {
+  return (
+    <Box
+      component="pre"
+      sx={{
+        bgcolor: "background.paper",
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: 1,
+        p: 2,
+        my: 2,
+        // A long line pans inside its own box; letting it widen the page would
+        // put a horizontal scrollbar on the whole document.
+        overflowX: "auto",
+        "& code": {
+          bgcolor: "transparent",
+          border: 0,
+          p: 0,
+          fontSize: { xs: "13px", sm: "14px" },
+        },
+      }}
+    >
+      {children}
+    </Box>
+  );
+}
+
+/** The hast node react-markdown hands a component, as far as this file reads it. */
+type HastNode = {
+  type: string;
+  value?: string;
+  tagName?: string;
+  properties?: { className?: unknown };
+  children?: HastNode[];
+};
+
+function textOf(node: HastNode): string {
+  return node.type === "text" ? (node.value ?? "") : (node.children ?? []).map(textOf).join("");
+}
+
+/**
+ * The source of a ```` ```mermaid ```` fence, or null for any other `<pre>`.
+ *
+ * Read off the hast node rather than the rendered children, which by now are
+ * React elements. The language arrives as a `language-mermaid` class on the
+ * inner `<code>`; the trailing newline the fence leaves is trimmed so it does
+ * not count as part of the diagram.
+ */
+function mermaidSource(pre: HastNode | undefined): string | null {
+  const code = pre?.children?.find((child) => child.tagName === "code");
+  const classes = code?.properties?.className;
+  if (!code || !Array.isArray(classes) || !classes.includes("language-mermaid")) return null;
+  return textOf(code).replace(/\n$/, "");
+}
+
 const components: Components = {
   h1: heading("h1"),
   h2: heading("h2"),
@@ -247,30 +303,11 @@ const components: Components = {
     </Box>
   ),
 
-  pre: ({ children }) => (
-    <Box
-      component="pre"
-      sx={{
-        bgcolor: "background.paper",
-        border: "1px solid",
-        borderColor: "divider",
-        borderRadius: 1,
-        p: 2,
-        my: 2,
-        // A long line pans inside its own box; letting it widen the page would
-        // put a horizontal scrollbar on the whole document.
-        overflowX: "auto",
-        "& code": {
-          bgcolor: "transparent",
-          border: 0,
-          p: 0,
-          fontSize: { xs: "13px", sm: "14px" },
-        },
-      }}
-    >
-      {children}
-    </Box>
-  ),
+  pre: ({ node, children }) => {
+    const block = <CodeBlock>{children}</CodeBlock>;
+    const source = mermaidSource(node);
+    return source === null ? block : <MermaidDiagram source={source} fallback={block} />;
+  },
 
   table: ({ children }) => (
     // Same reason as <pre>: a wide table scrolls in its own container rather
@@ -369,6 +406,8 @@ const inlineComponents: Components = {
  * - `remark-math` + `rehype-katex` for LaTeX: `$x^2$` inline, `$$...$$` as a
  *   centred block. **Loaded only when the body contains a `$`** -- see
  *   `mathPlugins.ts`, and `loadMath` above.
+ * - No plugin for Mermaid: a ```` ```mermaid ```` fence is caught in the `pre`
+ *   component and handed to `MermaidDiagram`, which loads mermaid itself.
  *
  * **`remark-math` has to come before `remark-breaks`, and it is a parser
  * extension rather than a transformer.** That is what keeps the two from

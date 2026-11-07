@@ -19,6 +19,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import CodeIcon from "@mui/icons-material/Code";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
@@ -43,6 +44,7 @@ import {
   indent,
   insertImage,
   insertLink,
+  insertMermaid,
   ORDERED,
   QUOTE,
   toggleCode,
@@ -326,11 +328,17 @@ function MarkdownEditor({
     },
     {
       key: "math",
-      // Last, and beside Code on purpose: both fence a span of text that is
+      // Beside Code on purpose: both fence a span of text that is
       // not prose, and both behave the same way on a multi-line selection.
       title: "Maths (LaTeX)",
       icon: <FunctionsIcon fontSize="small" />,
       run: () => run(toggleMath),
+    },
+    {
+      key: "mermaid",
+      title: "Diagram (Mermaid)",
+      icon: <AccountTreeIcon fontSize="small" />,
+      run: () => run(insertMermaid),
     },
   ];
 

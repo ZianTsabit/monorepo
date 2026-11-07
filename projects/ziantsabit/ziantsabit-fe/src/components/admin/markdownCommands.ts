@@ -263,6 +263,28 @@ export function toggleMath(value: string, start: number, end: number): Edit {
   };
 }
 
+/**
+ * Insert a ```` ```mermaid ```` fence on lines of its own.
+ *
+ * A selection becomes the diagram's body; with nothing selected a two-node
+ * starter goes in instead, selected, so typing replaces it.
+ */
+export function insertMermaid(value: string, start: number, end: number): Edit {
+  const body = value.slice(start, end) || "graph TD\n  A[Start] --> B[End]";
+  // A fence only counts at the start of a line, and the closing one needs a
+  // line of its own after it too.
+  const before = start > 0 && value[start - 1] !== "\n" ? "\n" : "";
+  const after = end < value.length && value[end] !== "\n" ? "\n" : "";
+  const open = before + "```mermaid\n";
+  return {
+    start,
+    end,
+    text: open + body + "\n```" + after,
+    selectStart: start + open.length,
+    selectEnd: start + open.length + body.length,
+  };
+}
+
 const LIST_ITEM = /^(\s*)([-*+]|\d+[.)])(\s+)(\[[ xX]\]\s+)?(.*)$/;
 const QUOTE_LINE = /^(\s*)(>\s?)(.*)$/;
 

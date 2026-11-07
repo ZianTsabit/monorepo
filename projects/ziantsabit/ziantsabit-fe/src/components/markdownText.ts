@@ -14,7 +14,11 @@
  */
 export function toPlainText(markdown: string): string {
   return markdown
+    // Fenced blocks go whole -- code, and Mermaid diagrams, whose source
+    // (`graph TD; A-->B`) would read as noise on a card. Both fence styles,
+    // since the renderer honours both.
     .replace(/```[\s\S]*?```/g, " ")
+    .replace(/~~~[\s\S]*?~~~/g, " ")
     .replace(/`([^`]*)`/g, "$1")
     // Images before links: image syntax is link syntax with a leading "!".
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
