@@ -99,15 +99,19 @@ Every command below is run from the monorepo root.
 
    The packages are private, so both base Deployments name the pull secret
    `ghcr` (`imagePullSecrets`). Create it in each namespace before applying,
-   or new pods sit in `ImagePullBackOff`. Rerun after rotating the PAT:
+   or new pods sit in `ImagePullBackOff`. The PAT (`read:packages`) is in Vault
+   at `kv/k3s/ghcr#PAT`; it goes in through stdin so it never appears on a
+   command line or in shell history. Rerun after rotating it:
 
    ```bash
+   PAT=$(vault kv get -mount=kv -field=PAT k3s/ghcr)
    for ns in ziantsabit-stg ziantsabit-prod; do
      kubectl create namespace $ns --dry-run=client -o yaml | kubectl apply -f -
-     kubectl -n $ns create secret docker-registry ghcr \
-       --docker-server=ghcr.io --docker-username=ziantsabit --docker-password=<PAT with read:packages> \
-       --dry-run=client -o yaml | kubectl apply -f -
+     jq -cn --arg a "$(printf 'ziantsabit:%s' "$PAT" | base64 -w0)" '{auths:{"ghcr.io":{auth:$a}}}' \
+       | kubectl -n $ns create secret generic ghcr --type=kubernetes.io/dockerconfigjson \
+           --from-file=.dockerconfigjson=/dev/stdin --dry-run=client -o yaml | kubectl apply -f -
    done
+   unset PAT
    ```
 
 4. **Apply, then create the secrets.** Pods wait in `CreateContainerConfigError`
