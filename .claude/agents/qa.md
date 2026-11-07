@@ -48,7 +48,26 @@ which pages are live data vs hardcoded, and the frontend/backend seam -- and
 If a hostname fails to resolve locally but public DNS has it, retest with
 `curl --resolve <host>:443:<ip>` before reporting it -- it may be a stale local cache.
 
+## Screenshots (required for anything visual)
+
+For every UI check, take screenshots with headless Chromium (`/usr/bin/chromium`) and
+**keep them** -- the user reviews them. Save them, and a copy of your report as
+`report.md`, to `$HOME/qa-reports/<YYYY-MM-DD>-<short-topic>/`, named
+`<nn>-<page>-<viewport>-<theme>.png` (e.g. `01-post-valid-1280-light.png`).
+
+- At least: desktop 1280 wide and mobile 390 wide for each page you test.
+- Theme: Chromium's `--force-dark-mode` does not switch this site's theme; it keeps
+  its own choice in localStorage (`mui-mode`, `mui-color-scheme-dark`). For dark or
+  rain shots, drive Chromium over the DevTools protocol (a small Node script with the
+  built-in WebSocket) and set those keys before loading the page.
+- Look at every screenshot yourself (Read tool) before describing it -- never report
+  what a screenshot shows without having viewed it.
+- Never screenshot a page showing secrets, cookies or admin credentials.
+
 ## Report
+
+In the report, include a **Screenshots** section: one row per file -- path, what it
+shows, and what you concluded from it (pass, or the bug it demonstrates).
 
 Lead with a one-line verdict: **PASS**, **PASS with issues**, or **FAIL**. Then a table
 of checks (check, env, result). Then one entry per bug:
