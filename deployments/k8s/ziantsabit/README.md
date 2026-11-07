@@ -97,13 +97,16 @@ Every command below is run from the monorepo root.
    docker push ghcr.io/ziantsabit/ziantsabit-fe:1.0.0
    ```
 
-   If the packages are private, uncomment `imagePullSecrets` in both base
-   Deployments and create the pull secret in each namespace:
+   The packages are private, so both base Deployments name the pull secret
+   `ghcr` (`imagePullSecrets`). Create it in each namespace before applying,
+   or new pods sit in `ImagePullBackOff`. Rerun after rotating the PAT:
 
    ```bash
    for ns in ziantsabit-stg ziantsabit-prod; do
+     kubectl create namespace $ns --dry-run=client -o yaml | kubectl apply -f -
      kubectl -n $ns create secret docker-registry ghcr \
-       --docker-server=ghcr.io --docker-username=ziantsabit --docker-password=<PAT with read:packages>
+       --docker-server=ghcr.io --docker-username=ziantsabit --docker-password=<PAT with read:packages> \
+       --dry-run=client -o yaml | kubectl apply -f -
    done
    ```
 

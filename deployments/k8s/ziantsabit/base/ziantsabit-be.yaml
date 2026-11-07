@@ -25,9 +25,9 @@ spec:
       labels:
         app: ziantsabit-be
     spec:
-      # Uncomment if the GHCR package is private; see README.md beside this file.
-      # imagePullSecrets:
-      #   - name: ghcr
+      # The GHCR packages are private: Secret `ghcr` in each namespace (README.md beside this file).
+      imagePullSecrets:
+        - name: ghcr
       securityContext:
         runAsUser: 1000
         runAsNonRoot: true
