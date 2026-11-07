@@ -1,0 +1,73 @@
+# Not applied directly: the poller fills in ${ISSUE}, ${IMAGE}, ${REPO},
+# ${OWNER_LOGIN} and ${NAMESPACE} with envsubst and creates one per issue.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: agent-issue-${ISSUE}
+  namespace: ${NAMESPACE}
+  labels:
+    app: agent-run
+    issue: "${ISSUE}"
+spec:
+  backoffLimit: 0                  # a failed run is reported, not retried
+  activeDeadlineSeconds: 3000      # 50 min; the agent itself stops at 40
+  ttlSecondsAfterFinished: 604800  # keep logs for a week
+  template:
+    metadata:
+      labels:
+        app: agent-run
+        issue: "${ISSUE}"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: agent-runner
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: ghcr
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+      volumes:
+        - name: work
+          emptyDir: { sizeLimit: 6Gi }
+        - name: home
+          emptyDir: {}
+      # 1. The agent: Claude credential only.
+      initContainers:
+        - name: agent
+          image: ${IMAGE}
+          command: ["run-agent.sh"]
+          env:
+            - { name: ISSUE, value: "${ISSUE}" }
+            - { name: REPO, value: "${REPO}" }
+            - { name: OWNER_LOGIN, value: "${OWNER_LOGIN}" }
+            # Every JVM (Gradle, its test workers) sizes its heap from the
+            # container limit, so they fit side by side.
+            - { name: JAVA_TOOL_OPTIONS, value: "-XX:MaxRAMPercentage=25" }
+            - { name: NODE_OPTIONS, value: "--max-old-space-size=512" }
+          envFrom:
+            - secretRef:
+                name: agents-claude
+          volumeMounts:
+            - { name: work, mountPath: /work }
+            - { name: home, mountPath: /home/agent }
+          resources:
+            requests: { cpu: 500m, memory: 1Gi }
+            limits: { memory: 1792Mi }
+      # 2. The publisher: GitHub token only; runs no agent-written code.
+      containers:
+        - name: publish
+          image: ${IMAGE}
+          command: ["publish.sh"]
+          env:
+            - { name: ISSUE, value: "${ISSUE}" }
+            - { name: REPO, value: "${REPO}" }
+            - name: GH_TOKEN
+              valueFrom:
+                secretKeyRef: { name: agents-github, key: token }
+          volumeMounts:
+            - { name: work, mountPath: /work }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }

@@ -17,6 +17,7 @@ Current projects:
 
 - `projects/ziantsabit/` — ziantsabit.com: `ziantsabit-fe/` (React + Vite SPA) and `ziantsabit-be/` (Spring Boot API), deployed by `deployments/k8s/ziantsabit/`.
 - `projects/spark/` — PySpark jobs for learning Spark (plan in `learnings/spark/`), run on the cluster by `deployments/k8s/spark/`.
+- `projects/agents/` — runs the `software-engineer` agent on GitHub issues labelled `agent:todo` (owner's only), one Job per issue, deployed by `deployments/k8s/agents/`.
 
 ## Adding a project
 
@@ -48,6 +49,8 @@ Subagents in `.claude/agents/`, one role each, for ziantsabit.com:
 - `devops` — builds, pushes and deploys to stg, then prod after the user confirms. Doesn't commit.
 - `qa` — tests the site and API (stg by default; prod read-only) and reports bugs. Doesn't edit code.
 - `ziantsabit-admin` — writes "site update" posts on ziantsabit.com from git history and the cluster, labelled as written by an AI agent, not Zian. Creates drafts; publishes only after the user approves.
+
+`software-engineer` also runs unattended in the cluster on issues labelled `agent:todo` (`projects/agents/`); it opens a draft PR and nothing more.
 
 The usual flow is software-engineer → devops (stg) → qa (stg) → devops (prod) → qa (prod).
 

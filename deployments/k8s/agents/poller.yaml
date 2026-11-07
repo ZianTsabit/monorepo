@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: issue-poller
+spec:
+  schedule: "*/3 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 120
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: issue-poller
+          imagePullSecrets:
+            - name: ghcr
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+          containers:
+            - name: poller
+              image: IMAGE-FROM-agents.env   # replaced by kustomize (see kustomization.yaml)
+              command: ["poll-issues.sh"]
+              envFrom:
+                - configMapRef:
+                    name: agents-settings
+              env:
+                - name: GH_TOKEN
+                  valueFrom:
+                    secretKeyRef: { name: agents-github, key: token }
+              volumeMounts:
+                - name: job-template
+                  mountPath: /etc/agents
+                  readOnly: true
+              resources:
+                requests: { cpu: 20m, memory: 64Mi }
+                limits: { memory: 192Mi }
+          volumes:
+            - name: job-template
+              configMap:
+                name: agents-job-template

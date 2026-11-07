@@ -1,0 +1,29 @@
+# The GitHub-issue agent: a CronJob polls for issues, one Job per issue.
+#   kubectl apply -k deployments/k8s/agents
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: agents
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - poller.yaml
+configMapGenerator:
+  # IMAGE here is the one place the version is set: the poller's own image is
+  # copied from it below, and the Job template reads it through envsubst.
+  - name: agents-settings
+    envs:
+      - agents.env
+  - name: agents-job-template
+    files:
+      - job-template.yaml
+replacements:
+  - source:
+      kind: ConfigMap
+      name: agents-settings
+      fieldPath: data.IMAGE
+    targets:
+      - select:
+          kind: CronJob
+          name: issue-poller
+        fieldPaths:
+          - spec.jobTemplate.spec.template.spec.containers.[name=poller].image
