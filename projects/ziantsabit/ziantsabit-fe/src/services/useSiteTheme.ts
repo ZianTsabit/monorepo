@@ -141,12 +141,11 @@ export function useSiteTheme(): SiteThemeState {
  *
  * **Borrowed, never kept.** The override lasts exactly as long as the post is
  * open: leaving hands the previous theme back, and a tab closed mid-post is
- * repaired by the reclaim in `index.html`. That is what the picker being the
- * owner's alone rests on -- a visitor has no control to escape with, so a
- * post's theme outliving the post would be a theme they could not undo.
+ * repaired by the reclaim in `index.html`. A post's theme outliving the post
+ * would silently replace the choice the reader made.
  *
- * For the owner, whose picker *is* on screen, using it releases the override
- * for good (see `setTheme`), so their own choice is not undone seconds later.
+ * Using the header's picker while a post is open releases the override for
+ * good (see `setTheme`), so the reader's own choice is not undone seconds later.
  *
  * **The switch happens when the post arrives, not before**, because the theme
  * is part of the post and there is nothing to read until then. That puts the
