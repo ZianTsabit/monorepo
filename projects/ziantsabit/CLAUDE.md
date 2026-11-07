@@ -46,7 +46,7 @@ No test runner is configured for the frontend.
 
 ### Colour and the light/dark theme
 
-`src/theme.ts` is the single source of colour. `main.tsx` wraps the app in `<ThemeProvider theme={theme} defaultMode="system">` plus `<CssBaseline />`, and the theme declares both schemes via MUI's `colorSchemes` with `cssVariables: { colorSchemeSelector: "class" }`.
+`src/theme.ts` is the single source of colour. `main.tsx` wraps the app in `<ThemeProvider theme={theme} defaultMode="light">` plus `<CssBaseline />`, and the theme declares both schemes via MUI's `colorSchemes` with `cssVariables: { colorSchemeSelector: "class" }`.
 
 **Never write a colour literal in a component.** `color: "white"` or `grey.900` resolves to the same thing in both schemes, so a literal silently breaks light mode — dark text on a dark card. Use semantic tokens only:
 
@@ -63,7 +63,7 @@ The one custom token is `palette.headerScrolled` (declared through module augmen
 
 Note the two schemes do **not** share a link colour: dark uses `#6497b1`, light uses the darker `#1565c0`, because `#6497b1` on white is only ~3.1:1 — under the 4.5:1 AA floor for body text. If you add a colour, check it against both backgrounds.
 
-**Mode selection** is `defaultMode="system"`, so a first-time visitor follows their OS. `ColorModeToggle.tsx` calls `setMode()` to store an explicit override under the `mui-mode` localStorage key, which then wins over the OS. `mode` is `undefined` on the first render, so the toggle renders a hidden same-size placeholder until mounted rather than flashing the wrong icon.
+**Mode selection** is `defaultMode="light"`: a first-time visitor gets Light whatever their OS prefers. Every visitor has the Light / Dark / Rain picker (`ColorModeToggle.tsx`, in the header) -- it was owner-only until 1.3.0. The picker never calls MUI directly: it goes through `useSiteTheme` (`src/services/useSiteTheme.ts`), the only code that should call `setMode`/`setColorScheme`, because Rain is "dark mode + the `rain` dark scheme" and setting only one half leaves the page half-changed. The choice persists in `mui-mode` and `mui-color-scheme-dark`. `mode` is `undefined` on the first render, so the toggle renders a hidden same-size placeholder until mounted rather than flashing the wrong icon.
 
 **Avoiding a flash of the wrong theme** takes two cooperating pieces, because MUI emits its palette as CSS variables injected by JavaScript — before React mounts there is nothing colouring the page:
 
