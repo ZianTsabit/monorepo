@@ -22,7 +22,7 @@ kubectl label node k8s-w2 agents=true          # allow
 kubectl label node k8s-w2 agents-              # disallow; Jobs then stay Pending
 ```
 
-Each run requests its whole 1792Mi budget. To reserve a node for agents only, also
+Each run requests its whole 3Gi budget. To reserve a node for agents only, also
 `kubectl taint node <node> agents=true:NoSchedule`; the Jobs tolerate it.
 
 ## Secrets

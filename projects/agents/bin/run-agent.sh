@@ -59,9 +59,23 @@ timeout 40m claude -p "$prompt" \
   --permission-mode acceptEdits \
   --allowedTools "Bash,Read,Edit,Write,Grep,Glob,TodoWrite" \
   --disallowedTools "WebFetch,WebSearch" \
-  --output-format text > "$out/report.raw" 2> "$out/claude.err"
-rc=$?
+  --output-format stream-json --verbose 2> "$out/claude.err" \
+  | tee "$out/stream.jsonl" \
+  | jq -R --unbuffered -r '
+      fromjson? // empty
+      | if .type == "assistant" then
+          .message.content[]?
+          | if .type == "text" then "💬 " + (.text | gsub("\n"; " ") | .[0:300])
+            elif .type == "tool_use" then
+              "🔧 \(.name): " + ((.input.command // .input.file_path // .input.pattern // .input.description // "") | tostring | gsub("\n"; " ") | .[0:200])
+            else empty end
+        elif .type == "result" then
+          "✅ finished: \(.subtype), \(.num_turns) turns, \((.duration_ms // 0) / 60000 | floor) min, $\(.total_cost_usd // 0)"
+        else empty end'
+rc=${PIPESTATUS[0]}
 cat "$out/claude.err" >&2
+# The final message (the PR body) is the stream's result event.
+jq -R -r 'fromjson? // empty | select(.type == "result") | .result // ""' "$out/stream.jsonl" > "$out/report.raw"
 
 # Never let the credential reach the PR, the patch or the issue.
 for v in ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN; do

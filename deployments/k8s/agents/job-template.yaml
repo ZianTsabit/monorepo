@@ -57,7 +57,7 @@ spec:
             # Every JVM (Gradle, its test workers) sizes its heap from the
             # container limit, so they fit side by side.
             - { name: JAVA_TOOL_OPTIONS, value: "-XX:MaxRAMPercentage=25" }
-            - { name: NODE_OPTIONS, value: "--max-old-space-size=512" }
+            - { name: NODE_OPTIONS, value: "--max-old-space-size=1024" }
           envFrom:
             - secretRef:
                 name: agents-claude
@@ -65,10 +65,11 @@ spec:
             - { name: work, mountPath: /work }
             - { name: home, mountPath: /home/agent }
           # Request = limit: the scheduler only places a run where its whole
-          # budget fits, instead of where 1 Gi fits and the rest is hoped for.
+          # budget fits, instead of where part of it fits and the rest is hoped
+          # for. 1792Mi was OOM-killed on the first real run (2026-11-08).
           resources:
-            requests: { cpu: 500m, memory: 1792Mi }
-            limits: { memory: 1792Mi }
+            requests: { cpu: 500m, memory: 3Gi }
+            limits: { memory: 3Gi }
       # 2. The publisher: GitHub token only; runs no agent-written code.
       containers:
         - name: publish

@@ -17,7 +17,7 @@ flow; this file is what is easy to break.
 - **Never on the control plane, one Job at a time.** The first run landed on
   `k8s-cp1` (2 GB then), filled it, and stalled the API server and CoreDNS -- the
   whole site went down until the VM was hard-stopped. Jobs now run only on nodes
-  labelled `agents=true` (`k8s-w2`) and request their full 1792Mi, so the scheduler
+  labelled `agents=true` (`k8s-w2`) and request their full 3Gi (1792Mi was OOM-killed), so the scheduler
   can't overcommit. That budget plus `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=25` is
   what lets Gradle, its test JVM, embedded Postgres and Claude Code fit. Don't lower
   the request below the limit, and don't drop the node affinity.
