@@ -1,0 +1,155 @@
+# Langfuse on the laptop, for tracing the agents (see README.md).
+# Trimmed from Langfuse's own docker-compose.yml (v4): no AI gateway, internal
+# services publish no ports, and only the web UI/API (3000) is reachable from
+# the LAN -- the cluster's agent Jobs send traces to it. Run it with ./up.sh,
+# which fills the ${...} secrets from Vault; `docker compose up` alone fails
+# on purpose (every secret is `:?` required).
+name: langfuse
+
+x-langfuse-env: &langfuse-env
+  NEXTAUTH_URL: http://localhost:3000
+  DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?run ./up.sh}@postgres:5432/postgres
+  SALT: ${SALT:?run ./up.sh}
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY:?run ./up.sh}
+  TELEMETRY_ENABLED: "false"
+  LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+  CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+  CLICKHOUSE_URL: http://clickhouse:8123
+  CLICKHOUSE_USER: clickhouse
+  CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?run ./up.sh}
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?run ./up.sh}
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?run ./up.sh}
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_AUTH: ${REDIS_AUTH:?run ./up.sh}
+
+x-depends: &langfuse-depends
+  postgres: { condition: service_healthy }
+  minio: { condition: service_healthy }
+  redis: { condition: service_healthy }
+  clickhouse: { condition: service_healthy }
+
+services:
+  langfuse-worker:
+    image: docker.langfuse.com/langfuse/langfuse-worker:4.70.0
+    restart: unless-stopped
+    depends_on: *langfuse-depends
+    environment: *langfuse-env
+    mem_limit: 1g
+
+  langfuse-web:
+    image: docker.langfuse.com/langfuse/langfuse:4.70.0
+    restart: unless-stopped
+    depends_on: *langfuse-depends
+    ports:
+      - 3000:3000            # LAN: the UI, and the API the cluster's agent Jobs post to
+    environment:
+      <<: *langfuse-env
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?run ./up.sh}
+      # The browser (on this laptop) fetches media through the published port.
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://localhost:9090
+      LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://minio:9000
+      # Created on first start, so the project's API keys are known in advance
+      # (they live in Vault, kv/laptop/langfuse).
+      LANGFUSE_INIT_ORG_ID: ziantsabit
+      LANGFUSE_INIT_ORG_NAME: ZianTsabit
+      LANGFUSE_INIT_PROJECT_ID: agents
+      LANGFUSE_INIT_PROJECT_NAME: agents
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:?run ./up.sh}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:?run ./up.sh}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:?run ./up.sh}
+      LANGFUSE_INIT_USER_NAME: Zian
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:?run ./up.sh}
+      AUTH_DISABLE_SIGNUP: "true"
+    mem_limit: 1g
+
+  clickhouse:
+    image: docker.io/clickhouse/clickhouse-server:26.3.62.3
+    restart: unless-stopped
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?run ./up.sh}
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 1s
+    mem_limit: 2g
+
+  minio:
+    # Chainguard publishes only `latest` for free; pinned by digest instead.
+    image: cgr.dev/chainguard/minio@sha256:869ca3178831d9f521ea02258a0f0d4fbc1e9f84302e707514e1f861b860865d
+    restart: unless-stopped
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?run ./up.sh}
+    ports:
+      - 127.0.0.1:9090:9000  # this laptop only: media links opened in the browser
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+      start_period: 1s
+    mem_limit: 512m
+
+  redis:
+    image: docker.io/redis:7.4.11
+    restart: unless-stopped
+    command: --requirepass ${REDIS_AUTH:?run ./up.sh} --maxmemory-policy noeviction
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_AUTH:?run ./up.sh}", "--no-auth-warning", "ping"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+    mem_limit: 256m
+
+  postgres:
+    image: docker.io/postgres:17.10
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run ./up.sh}
+      POSTGRES_DB: postgres
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    mem_limit: 512m
+
+volumes:
+  postgres_data:
+  clickhouse_data:
+  clickhouse_logs:
+  minio_data:
+  redis_data:

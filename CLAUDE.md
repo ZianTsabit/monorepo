@@ -18,6 +18,7 @@ Current projects:
 - `projects/ziantsabit/` — ziantsabit.com: `ziantsabit-fe/` (React + Vite SPA) and `ziantsabit-be/` (Spring Boot API), deployed by `deployments/k8s/ziantsabit/`.
 - `projects/spark/` — PySpark jobs for learning Spark (plan in `learnings/spark/`), run on the cluster by `deployments/k8s/spark/`.
 - `projects/agents/` — runs the `software-engineer` agent on GitHub issues labelled `agent:todo` (owner's only), one Job per issue, deployed by `deployments/k8s/agents/`.
+- `projects/langfuse/` — Langfuse for agent traces, run **on the laptop** with Docker Compose (not on the cluster: the Proxmox host has no memory to spare). Secrets in Vault `kv/laptop/langfuse`.
 
 ## Adding a project
 
