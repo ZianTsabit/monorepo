@@ -73,6 +73,15 @@ uses it through the `recall` skill (`.claude/skills/recall/`) when asked "how di
 fix X before?". It's history, not current state -- check the live system before
 acting on what it finds.
 
+## Journal: one Obsidian note per day
+
+`projects/langfuse/bin/day.sh [YYYY-MM-DD]` prints a day's Claude Code turns (prompt +
+reply, by session) and agent runs (with cost). The `journal` skill
+(`.claude/skills/journal/`) turns that into
+`~/Documents/Obsidian Vault/Claude/Journal/<date>.md` -- summary, decisions and why,
+problems and fixes, open items. Say "journal" in Claude Code. It only ever writes
+under the vault's `Claude/` folder.
+
 ## Upgrading
 
 Image versions are pinned in `compose.yml` (web and worker must match). Bump
