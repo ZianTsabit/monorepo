@@ -40,6 +40,17 @@ kubectl apply -k deployments/k8s/<name>/overlays/stg
 - **Images are pinned to a version tag** (`ghcr.io/ziantsabit/<image>:<version>`), never `latest`; a release is a tag bump in the manifest.
 - **Databases and object storage are not in the cluster.** Postgres and RustFS are separate, already-running servers that the manifests point at.
 
+## Agents
+
+Subagents in `.claude/agents/`, one role each, for ziantsabit.com:
+
+- `software-engineer` — code changes to `projects/ziantsabit/` (SPA and API), with tests. Doesn't deploy.
+- `devops` — builds, pushes and deploys to stg, then prod after the user confirms. Doesn't commit.
+- `qa` — tests the site and API (stg by default; prod read-only) and reports bugs. Doesn't edit code.
+- `ziantsabit-admin` — writes "site update" posts on ziantsabit.com from git history and the cluster, labelled as written by an AI agent, not Zian. Creates drafts; publishes only after the user approves.
+
+The usual flow is software-engineer → devops (stg) → qa (stg) → devops (prod) → qa (prod).
+
 ## Cross-references
 
 Project READMEs, `CLAUDE.md` files and `notes/` link to each other and into `deployments/` by relative path. When moving or renaming a file, grep the repo for the old path — nothing checks these links.
