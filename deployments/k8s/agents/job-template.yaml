@@ -23,6 +23,18 @@ spec:
       automountServiceAccountToken: false
       imagePullSecrets:
         - name: ghcr
+      # Never on the control plane: an agent run that filled k8s-cp1's 2 GB
+      # stalled the API server and CoreDNS and took the whole site down
+      # (2026-11-07). Only nodes labelled agents=true take these Jobs.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - { key: node-role.kubernetes.io/control-plane, operator: DoesNotExist }
+                  - { key: agents, operator: In, values: ["true"] }
+      tolerations:
+        - { key: agents, operator: Equal, value: "true", effect: NoSchedule }
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
@@ -52,8 +64,10 @@ spec:
           volumeMounts:
             - { name: work, mountPath: /work }
             - { name: home, mountPath: /home/agent }
+          # Request = limit: the scheduler only places a run where its whole
+          # budget fits, instead of where 1 Gi fits and the rest is hoped for.
           resources:
-            requests: { cpu: 500m, memory: 1Gi }
+            requests: { cpu: 500m, memory: 1792Mi }
             limits: { memory: 1792Mi }
       # 2. The publisher: GitHub token only; runs no agent-written code.
       containers:
