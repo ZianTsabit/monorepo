@@ -29,7 +29,11 @@ kubectl -n "$NAMESPACE" get jobs -l app=agent-run,reported!=true -o json \
       [ -n "$n" ] || continue
       say "job agent-issue-$n failed without reporting; marking issue #$n failed"
       gh issue edit "$n" -R "$REPO" --remove-label agent:working --add-label agent:failed >/dev/null || true
-      gh issue comment "$n" -R "$REPO" --body "🤖 The software-engineer agent's run stopped before it could report (out of memory or time limit). Logs: \`kubectl -n $NAMESPACE logs job/agent-issue-$n -c agent\`." >/dev/null || true
+      reason=$(kubectl -n "$NAMESPACE" get pods -l "job-name=agent-issue-$n" -o json \
+        | jq -r '[.items[].status | (.initContainerStatuses // [])[], (.containerStatuses // [])[]
+                  | select(.state.terminated and .state.terminated.exitCode != 0)
+                  | "\(.name): \(.state.terminated.reason) (exit \(.state.terminated.exitCode))"] | join(", ") | if . == "" then "deadline or eviction" else . end')
+      gh issue comment "$n" -R "$REPO" --body "🤖 The software-engineer agent's run stopped before it could report: $reason. Logs: \`kubectl -n $NAMESPACE logs job/agent-issue-$n -c agent\` (and \`-c publish\`)." >/dev/null || true
       kubectl -n "$NAMESPACE" label job "agent-issue-$n" reported=true --overwrite >/dev/null
     done
 
