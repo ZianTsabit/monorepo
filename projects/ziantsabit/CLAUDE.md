@@ -1,6 +1,6 @@
-# CLAUDE.md — zian-tsabit-com
+# CLAUDE.md — ziantsabit
 
-Guidance for this project of the monorepo; the monorepo-wide conventions are in the root `CLAUDE.md`. Paths below are relative to `projects/zian-tsabit-com/` unless they say otherwise.
+Guidance for this project of the monorepo; the monorepo-wide conventions are in the root `CLAUDE.md`. Paths below are relative to `projects/ziantsabit/` unless they say otherwise.
 
 ## Overview
 

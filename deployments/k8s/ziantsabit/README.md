@@ -1,7 +1,7 @@
 # Kubernetes: ziantsabit
 
-The site on the home k3s cluster -- the [`ziantsabit-fe`](../../../projects/zian-tsabit-com/ziantsabit-fe) SPA and the
-[`ziantsabit-be`](../../../projects/zian-tsabit-com/ziantsabit-be) API -- in two environments, production and
+The site on the home k3s cluster -- the [`ziantsabit-fe`](../../../projects/ziantsabit/ziantsabit-fe) SPA and the
+[`ziantsabit-be`](../../../projects/ziantsabit/ziantsabit-be) API -- in two environments, production and
 staging. Production is reached only through a Cloudflare Tunnel; staging has no
 tunnel or domain and is reached on the home LAN by node IP, over plain HTTP:
 
@@ -22,7 +22,7 @@ one shared `base/`, and an overlay per environment holding only what differs.
 | `base/` | Everything both environments share: the API and SPA Deployments and Services, `external.yaml` (Services `postgres` and `rustfs` for the two servers outside the cluster, each with a hand-written EndpointSlice holding its IP), and the API settings common to both (`ziantsabit-be.env`) |
 | `overlays/prod/` | Namespace `ziantsabit-prod`, prod's API settings, and the image tags running in prod |
 | `overlays/stg/` | Namespace `ziantsabit-stg`, staging's API settings, its image tags, one SPA replica instead of two, and NodePorts in place of ClusterIP |
-| `cloudflared/` | The tunnel connector, in its own namespace `cloudflared` -- prod's only way in |
+| [`../cloudflared/`](../cloudflared/) | Not in this directory: the tunnel connector, in its own namespace `cloudflared` -- prod's only way in. Shared by the cluster, so it sits beside the projects rather than inside one |
 
 What differs between the two:
 
@@ -85,15 +85,15 @@ Every command below is run from the monorepo root.
    visitor's browser calls `localhost:8000`:
 
    ```bash
-   docker build -t ghcr.io/ziantsabit/ziantsabit-be:1.0.0 projects/zian-tsabit-com/ziantsabit-be
+   docker build -t ghcr.io/ziantsabit/ziantsabit-be:1.0.0 projects/ziantsabit/ziantsabit-be
    docker push ghcr.io/ziantsabit/ziantsabit-be:1.0.0
 
    docker build -t ghcr.io/ziantsabit/ziantsabit-fe:1.0.0-stg \
-     --build-arg VITE_API_BASE_URL=http://192.168.0.150:30800/api projects/zian-tsabit-com/ziantsabit-fe
+     --build-arg VITE_API_BASE_URL=http://192.168.0.150:30800/api projects/ziantsabit/ziantsabit-fe
    docker push ghcr.io/ziantsabit/ziantsabit-fe:1.0.0-stg
 
    docker build -t ghcr.io/ziantsabit/ziantsabit-fe:1.0.0 \
-     --build-arg VITE_API_BASE_URL=https://api.ziantsabit.com/api projects/zian-tsabit-com/ziantsabit-fe
+     --build-arg VITE_API_BASE_URL=https://api.ziantsabit.com/api projects/ziantsabit/ziantsabit-fe
    docker push ghcr.io/ziantsabit/ziantsabit-fe:1.0.0
    ```
 
@@ -111,7 +111,7 @@ Every command below is run from the monorepo root.
    until their Secret exists. The API's secret uses the app's names:
 
    ```bash
-   kubectl apply -k deployments/k8s/ziantsabit/cloudflared
+   kubectl apply -k deployments/k8s/cloudflared
    kubectl apply -k deployments/k8s/ziantsabit/overlays/stg
    kubectl apply -k deployments/k8s/ziantsabit/overlays/prod
 
@@ -121,7 +121,7 @@ Every command below is run from the monorepo root.
    # app's names (RUSTFS_* -> AWS_S3_*). Rerun after rotating a value in
    # Vault, then `kubectl -n ziantsabit-<env> rollout restart deploy/ziantsabit-be`.
    for env in stg prod; do
-     projects/zian-tsabit-com/ziantsabit-be/vault-env.sh $env \
+     projects/ziantsabit/ziantsabit-be/vault-env.sh $env \
        | kubectl -n ziantsabit-$env create secret generic ziantsabit-be \
            --from-env-file=/dev/stdin --dry-run=client -o yaml \
        | kubectl apply -f -
@@ -181,11 +181,11 @@ version number.
 
 ```bash
 # API -- built once
-docker build -t ghcr.io/ziantsabit/ziantsabit-be:<version> projects/zian-tsabit-com/ziantsabit-be && docker push ghcr.io/ziantsabit/ziantsabit-be:<version>
+docker build -t ghcr.io/ziantsabit/ziantsabit-be:<version> projects/ziantsabit/ziantsabit-be && docker push ghcr.io/ziantsabit/ziantsabit-be:<version>
 
 # SPA -- built per environment, with the build arg every time
 docker build -t ghcr.io/ziantsabit/ziantsabit-fe:<version>-stg \
-  --build-arg VITE_API_BASE_URL=http://192.168.0.150:30800/api projects/zian-tsabit-com/ziantsabit-fe && docker push ghcr.io/ziantsabit/ziantsabit-fe:<version>-stg
+  --build-arg VITE_API_BASE_URL=http://192.168.0.150:30800/api projects/ziantsabit/ziantsabit-fe && docker push ghcr.io/ziantsabit/ziantsabit-fe:<version>-stg
 ```
 
 Set the tags under `images:` in `overlays/stg/kustomization.yaml`, then

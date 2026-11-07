@@ -1,7 +1,7 @@
 # The Cloudflare Tunnel connector: prod's only way in from outside. Staging is
-# not on it -- it is LAN-only, over NodePorts (../overlays/stg). It lives in its
+# not on it -- it is LAN-only, over NodePorts (../ziantsabit/overlays/stg). It lives in its
 # own namespace rather than prod's so that it can serve more environments later,
-# and so tearing an environment down can't take the tunnel with it. Apply with `kubectl apply -k deployments/k8s/ziantsabit/cloudflared`.
+# and so tearing an environment down can't take the tunnel with it. Apply with `kubectl apply -k deployments/k8s/cloudflared`.
 #
 # A remotely-managed tunnel -- its public hostnames are configured in the
 # Cloudflare dashboard, and this only needs the tunnel token (Secret

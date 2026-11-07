@@ -15,7 +15,7 @@ ZianTsabit's personal monorepo: the applications, the manifests that run them on
 
 Current projects:
 
-- `projects/zian-tsabit-com/` — ziantsabit.com: `ziantsabit-fe/` (React + Vite SPA) and `ziantsabit-be/` (Spring Boot API), deployed by `deployments/k8s/ziantsabit/`.
+- `projects/ziantsabit/` — ziantsabit.com: `ziantsabit-fe/` (React + Vite SPA) and `ziantsabit-be/` (Spring Boot API), deployed by `deployments/k8s/ziantsabit/`.
 - `projects/spark/` — PySpark jobs for learning Spark (plan in `learnings/spark/`), run on the cluster by `deployments/k8s/spark/`.
 
 ## Adding a project
@@ -28,7 +28,7 @@ Current projects:
 
 The cluster is k3s: one server (`k8s-cp1`) and two agents (`k8s-w1`, `k8s-w2`); `notes/kubernetes/architecture.md` has the details. Public traffic arrives through a Cloudflare tunnel (`cloudflared`), not an exposed ingress.
 
-A deployment directory is Kustomize: a shared `base/` and one overlay per environment under `overlays/` (`stg`, `prod`), each in its own namespace, `<name>-<env>`. (`deployments/k8s/spark/`, a single-environment learning lab, is the exception: `operator/`, `lab/` and `apps/`, no overlays.) Non-secret settings are `.env` files turned into a ConfigMap by a generator, so editing one and re-applying rolls the pods.
+A deployment directory is Kustomize: a shared `base/` and one overlay per environment under `overlays/` (`stg`, `prod`), each in its own namespace, `<name>-<env>`. (`deployments/k8s/spark/`, a single-environment learning lab, is the exception: `operator/`, `lab/` and `apps/`, no overlays.) Cluster-wide pieces that no single project owns sit beside the projects, not inside one: `deployments/k8s/cloudflared/` is the tunnel connector every public hostname goes through. Non-secret settings are `.env` files turned into a ConfigMap by a generator, so editing one and re-applying rolls the pods.
 
 ```bash
 kubectl kustomize deployments/k8s/<name>/overlays/stg    # render what an overlay produces

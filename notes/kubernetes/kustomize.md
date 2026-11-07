@@ -17,9 +17,11 @@ base/                    # shared: Deployments, Services, external.yaml, shared 
 overlays/
   stg/kustomization.yaml # namespace ziantsabit-stg, stg settings, tags, 1 SPA replica
   prod/kustomization.yaml# namespace ziantsabit-prod, prod settings, tags
-cloudflared/             # standalone, not an overlay: one tunnel serves both
-  kustomization.yaml
 ```
+
+The tunnel connector is a separate, standalone Kustomization in
+[`deployments/k8s/cloudflared/`](../../deployments/k8s/cloudflared/), not an
+overlay: one tunnel serves the whole cluster, so it doesn't belong to any one project.
 
 ## Commands
 
