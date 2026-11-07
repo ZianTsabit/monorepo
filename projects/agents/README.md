@@ -39,7 +39,16 @@ set the label back to `agent:todo`.
 | `Dockerfile` | `ghcr.io/ziantsabit/agent-runner`: Claude Code, `gh`, `kubectl`, git, JDK 25, Node 24 |
 | `bin/poll-issues.sh` | The CronJob: creates labels, reports dead Jobs, starts one Job at a time |
 | `bin/run-agent.sh` | The Job's `agent` container: does the work |
-| `bin/publish.sh` | The Job's `publish` container: commits, pushes, opens the PR |
+| `bin/publish.sh` | The Job's `publish` container: commits, pushes, opens the PR, sends the trace |
+| `bin/trace-upload.sh` | Turns the run's recorded stream into one Langfuse trace (OpenTelemetry) |
+
+## Traces
+
+Every run is traced in Langfuse ([`projects/langfuse`](../langfuse), on the laptop):
+one trace per run named `issue #N: title`, tagged `software-engineer`, `issue-N` and
+the outcome, with a span per model message (tokens, cache) and per tool call (input,
+output, errors), and the run's exact cost. Open http://localhost:3000 → project
+`agents` → Tracing. With the laptop off, the run still works; it just isn't traced.
 
 ## Building
 

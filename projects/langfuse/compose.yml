@@ -47,8 +47,10 @@ services:
     image: docker.langfuse.com/langfuse/langfuse-worker:4.70.0
     restart: unless-stopped
     depends_on: *langfuse-depends
-    environment: *langfuse-env
-    mem_limit: 1g
+    environment:
+      <<: *langfuse-env
+      NODE_OPTIONS: --max-old-space-size=1024
+    mem_limit: 1536m
 
   langfuse-web:
     image: docker.langfuse.com/langfuse/langfuse:4.70.0
@@ -74,7 +76,10 @@ services:
       LANGFUSE_INIT_USER_NAME: Zian
       LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:?run ./up.sh}
       AUTH_DISABLE_SIGNUP: "true"
-    mem_limit: 1g
+      # Node sizes its heap from the container limit (~500 MB at 1g) and the
+      # first authenticated request crashed it: "JavaScript heap out of memory".
+      NODE_OPTIONS: --max-old-space-size=1536
+    mem_limit: 2g
 
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server:26.3.62.3

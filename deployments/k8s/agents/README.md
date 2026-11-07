@@ -34,6 +34,11 @@ Never committed. Kept in Vault at `kv/k3s/agents`:
 | `GITHUB_TOKEN` | Fine-grained PAT, **only** `ZianTsabit/monorepo`: Contents read/write, Issues read/write, Pull requests read/write (Metadata read is implied) | poller, `publish` |
 | `ANTHROPIC_API_KEY` *or* `CLAUDE_CODE_OAUTH_TOKEN` | Claude credential: an API key with a spend limit set in the Anthropic Console, or a subscription token from `claude setup-token` | `agent` |
 
+Plus, for traces, the Langfuse project keys at `kv/laptop/langfuse` (`PUBLIC_KEY`,
+`SECRET_KEY`) -- Langfuse runs on the laptop ([`projects/langfuse`](../../../projects/langfuse)).
+They become Secret `agents-langfuse`, used by `publish` only and marked optional:
+without it, or with the laptop off, runs work and send no trace.
+
 Every command below is run from the monorepo root, with
 `VAULT_ADDR=https://192.168.0.114:8200` and `VAULT_CACERT=$HOME/.config/vault/ca.pem`.
 
@@ -56,6 +61,12 @@ vault kv get -mount=kv -field=GITHUB_TOKEN k3s/agents \
 vault kv get -format=json -mount=kv k3s/agents \
   | jq -r '.data.data | to_entries[] | select(.key == "ANTHROPIC_API_KEY" or .key == "CLAUDE_CODE_OAUTH_TOKEN") | "\(.key)=\(.value)"' \
   | kubectl -n agents create secret generic agents-claude --from-env-file=/dev/stdin \
+      --dry-run=client -o yaml | kubectl apply -f -
+
+# Traces to Langfuse on the laptop (its address: reserve it in the router's DHCP).
+printf 'LANGFUSE_HOST=http://192.168.0.108:3000\nLANGFUSE_PUBLIC_KEY=%s\nLANGFUSE_SECRET_KEY=%s\n' \
+    "$(vault kv get -mount=kv -field=PUBLIC_KEY laptop/langfuse)" "$(vault kv get -mount=kv -field=SECRET_KEY laptop/langfuse)" \
+  | kubectl -n agents create secret generic agents-langfuse --from-env-file=/dev/stdin \
       --dry-run=client -o yaml | kubectl apply -f -
 ```
 

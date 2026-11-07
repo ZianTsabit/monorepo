@@ -29,3 +29,13 @@ flow; this file is what is easy to break.
   time, so editing that file on `main` changes the agent without a new image.
 - Claude Code flags in `run-agent.sh` are the safety boundary for tools:
   `--allowedTools` has no web tools, and `--disallowedTools` blocks them explicitly.
+- **Tracing keeps the same credential split.** `run-agent.sh` records the stream
+  (`stream.tsv`) and blanks the Claude credential out of it with `perl \Q...\E`; the
+  upload happens in `publish`, the only container with the Langfuse keys. Langfuse
+  v4 accepts traces **only** as OpenTelemetry (`/api/public/otel/v1/traces`) -- the
+  old `/api/public/ingestion` events and the trace read API answer 400 in v4.
+- Per-message generations carry `cost_details {total: 0}` and one extra
+  "total cost" generation carries Claude Code's `total_cost_usd`; without the zeros
+  Langfuse prices each message itself and the trace total stops matching the bill.
+- `trace-upload.sh` must stay best effort (exit 0 on any failure): the laptop being
+  off is normal and must never fail a run.

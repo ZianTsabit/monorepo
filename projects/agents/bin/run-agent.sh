@@ -24,6 +24,7 @@ jq -e '.pull_request' <<<"$issue" >/dev/null 2>&1 && finish failed "#$ISSUE is a
 title=$(jq -r '.title' <<<"$issue")
 body=$(jq -r '.body // ""' <<<"$issue")
 printf '%s' "$title" > "$out/title"
+printf '%s' "$body" > "$out/issue.md"
 
 git clone --quiet --depth 50 "https://github.com/$REPO.git" /work/repo || finish failed "Could not clone $REPO."
 cd /work/repo
@@ -60,7 +61,11 @@ timeout 40m claude -p "$prompt" \
   --allowedTools "Bash,Read,Edit,Write,Grep,Glob,TodoWrite" \
   --disallowedTools "WebFetch,WebSearch" \
   --output-format stream-json --verbose 2> "$out/claude.err" \
-  | tee "$out/stream.jsonl" \
+  | while IFS= read -r line; do
+      # stream.tsv: <unix microseconds>\t<event>, for the trace (trace-upload.sh)
+      printf '%s\t%s\n' "${EPOCHREALTIME/./}" "$line" >> "$out/stream.tsv"
+      printf '%s\n' "$line"
+    done \
   | jq -R --unbuffered -r '
       fromjson? // empty
       | if .type == "assistant" then
@@ -74,8 +79,14 @@ timeout 40m claude -p "$prompt" \
         else empty end'
 rc=${PIPESTATUS[0]}
 cat "$out/claude.err" >&2
+touch "$out/stream.tsv"
+# The recorded stream goes to Langfuse from the publish container, which never
+# sees the Claude credential -- so blank it out here, where it is known.
+for v in ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN; do
+  [ -n "${!v:-}" ] && TOK="${!v}" perl -pi -e 's/\Q$ENV{TOK}\E/[REDACTED]/g' "$out/stream.tsv"
+done
 # The final message (the PR body) is the stream's result event.
-jq -R -r 'fromjson? // empty | select(.type == "result") | .result // ""' "$out/stream.jsonl" > "$out/report.raw"
+cut -f2- "$out/stream.tsv" | jq -R -r 'fromjson? // empty | select(.type == "result") | .result // ""' > "$out/report.raw"
 
 # Never let the credential reach the PR, the patch or the issue.
 for v in ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN; do

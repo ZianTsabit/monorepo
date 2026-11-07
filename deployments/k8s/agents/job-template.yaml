@@ -81,6 +81,10 @@ spec:
             - name: GH_TOKEN
               valueFrom:
                 secretKeyRef: { name: agents-github, key: token }
+          # LANGFUSE_HOST / _PUBLIC_KEY / _SECRET_KEY for the run's trace. Optional:
+          # without the Secret (or with the laptop off) runs work, untraced.
+          envFrom:
+            - secretRef: { name: agents-langfuse, optional: true }
           volumeMounts:
             - { name: work, mountPath: /work }
           resources:

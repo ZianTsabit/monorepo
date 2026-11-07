@@ -15,6 +15,8 @@ branch="agent/issue-$ISSUE"
 
 label() { gh issue edit "$ISSUE" -R "$REPO" --remove-label agent:working --add-label "$1" >/dev/null; }
 comment() { gh issue comment "$ISSUE" -R "$REPO" --body-file - >/dev/null; }
+# Langfuse trace of the run (best effort: never fails the publish).
+trace() { trace-upload.sh "$out/stream.tsv" "$1" "${2:-}" || true; }
 
 # Any failure from here on (push refused, PR API error) is reported on the issue
 # instead of leaving it at agent:working. Exits 0 so the poller doesn't report
@@ -23,6 +25,7 @@ on_error() {
   trap - ERR
   printf '🤖 The software-engineer agent finished its work, but publishing it failed at: `%s`.\n\nCheck the GitHub token'"'"'s permissions (Contents, Issues, Pull requests: read and write). Logs: `kubectl -n agents logs job/agent-issue-%s -c publish`.\n' "$BASH_COMMAND" "$ISSUE" | comment || true
   label agent:failed || true
+  trace publish-failed
   exit 0
 }
 trap on_error ERR
@@ -31,10 +34,10 @@ case "$status" in
   ok) ;;
   nochange)
     printf '🤖 The software-engineer agent made no changes.\n\n<details><summary>Its report</summary>\n\n%s\n\n</details>\n' "$report" | comment
-    label agent:failed; exit 0 ;;
+    label agent:failed; trace nochange; exit 0 ;;
   *)
     printf '🤖 The software-engineer agent could not finish.\n\n%s\n' "$report" | comment
-    label agent:failed; exit 0 ;;
+    label agent:failed; trace failed; exit 0 ;;
 esac
 
 gh auth setup-git
@@ -61,3 +64,4 @@ fi
 printf '🤖 Draft PR ready for review: %s\n' "$url" | comment
 label agent:done
 echo "[publish] $url"
+trace ok "$url"
