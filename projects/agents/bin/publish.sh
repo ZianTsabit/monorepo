@@ -50,7 +50,8 @@ git -c core.hooksPath=/dev/null \
     -m "Written by the software-engineer AI agent for issue #$ISSUE. Review before merging."
 git -c core.hooksPath=/dev/null push --quiet --force origin "$branch"
 
-pr_body=$(printf '> 🤖 **Opened by the software-engineer AI agent** for #%s. Nothing here is merged or deployed; review it first.\n\n%s\n' "$ISSUE" "$report")
+# "Closes #N" makes GitHub close the issue when the PR is merged.
+pr_body=$(printf '> 🤖 **Opened by the software-engineer AI agent.** Closes #%s. Nothing here is merged or deployed; review it first.\n\n%s\n' "$ISSUE" "$report")
 url=$(gh pr list -R "$REPO" --head "$branch" --state open --json url -q '.[0].url')
 if [ -n "$url" ]; then
   gh pr edit "$url" --body "$pr_body" >/dev/null
