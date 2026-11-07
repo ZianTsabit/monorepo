@@ -3,9 +3,9 @@
  *
  * The admin page is the only route with any use for a logged-in user, so no
  * public page ever makes a session request it would ignore. The public
- * components that import anything from here -- `Header`, for its Admin link,
- * and `ColorModeToggle`, which is the owner's control -- take `useAdminHint`
- * only: a localStorage read, not a request, for exactly that reason.
+ * component that imports anything from here -- `Header`, for its Admin link --
+ * takes `useAdminHint` only: a localStorage read, not a request, for exactly
+ * that reason.
  */
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
