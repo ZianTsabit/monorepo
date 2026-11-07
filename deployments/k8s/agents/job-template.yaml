@@ -57,7 +57,7 @@ spec:
             # Every JVM (Gradle, its test workers) sizes its heap from the
             # container limit, so they fit side by side.
             - { name: JAVA_TOOL_OPTIONS, value: "-XX:MaxRAMPercentage=25" }
-            - { name: NODE_OPTIONS, value: "--max-old-space-size=1024" }
+            - { name: NODE_OPTIONS, value: "--max-old-space-size=2048" }   # vite build OOMs at 1024
           envFrom:
             - secretRef:
                 name: agents-claude
