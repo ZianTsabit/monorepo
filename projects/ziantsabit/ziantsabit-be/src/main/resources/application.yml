@@ -1,7 +1,5 @@
-# Every value that differs between environments reads an environment variable,
-# under the same name the Django backend used where there was one -- so the
-# compose files and an existing `.env` keep working across the switch. The
-# defaults are the local-development ones, matching docker-compose.yml.
+# Every value that differs between environments reads an environment variable.
+# The defaults are the local-development ones, matching docker-compose.yml.
 
 spring:
   application:
@@ -23,11 +21,6 @@ spring:
         sslrootcert: ${POSTGRES_SSLROOTCERT:}
 
   flyway:
-    # The production database was built by Django and has no Flyway history.
-    # Baselining at 0 rather than 1 means V1 still runs against it -- and V1 is
-    # all IF NOT EXISTS, so it finds every table in place and changes nothing.
-    baseline-on-migrate: true
-    baseline-version: "0"
     # The seed migration carries page content verbatim; nothing in it is a
     # placeholder.
     placeholder-replacement: false
@@ -38,8 +31,8 @@ spring:
       initialize-schema: never
 
   jackson:
-    # The API's field names are snake_case, as DRF's were and as the SPA reads
-    # them. Map keys (error bodies, page documents) are left exactly as written.
+    # The API's field names are snake_case, as the SPA reads them. Map keys
+    # (error bodies, page documents) are left exactly as written.
     property-naming-strategy: SNAKE_CASE
 
   servlet:
@@ -55,15 +48,15 @@ server:
   port: 8000
   # `native` behind cloudflared or any TLS-terminating proxy: Tomcat then takes
   # the scheme and client address from X-Forwarded-*, but only when the request
-  # arrives from a private address. Off by default, as USE_X_FORWARDED_PROTO
-  # was, because a header a client can send is only trustworthy behind a proxy.
+  # arrives from a private address. Off by default, because a header a client
+  # can send is only trustworthy behind a proxy.
   forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:none}
   servlet:
     session:
-      # Django's SESSION_COOKIE_AGE: two weeks.
+      # Two weeks: the owner logs in rarely, from their own devices.
       timeout: 14d
       cookie:
-        name: sessionid
+        # Spring Session's own cookie name, SESSION, is kept.
         http-only: true
         max-age: 14d
         # Lax is enough while the SPA and the API share a registrable domain
@@ -88,9 +81,9 @@ springdoc:
   paths-to-match: /api/**
 
 app:
-  # Space-separated, like DJANGO_ALLOWED_HOSTS, which is still read so an
-  # existing .env carries over. A leading dot matches subdomains; `*` anything.
-  allowed-hosts: ${ALLOWED_HOSTS:${DJANGO_ALLOWED_HOSTS:localhost 127.0.0.1 [::1]}}
+  # The Host headers this API answers to; pagination links are built from it.
+  # Space-separated. A leading dot matches subdomains; `*` anything.
+  allowed-hosts: ${ALLOWED_HOSTS:localhost 127.0.0.1 [::1]}
 
   # The SPA is always on another origin than the API -- Vite on :5173,
   # `npm run preview` on :4173, the nginx container on :8080 -- so without these
@@ -102,23 +95,19 @@ app:
   csrf-cookie-same-site: ${CSRF_COOKIE_SAMESITE:Lax}
   csrf-cookie-secure: ${CSRF_COOKIE_SECURE:false}
 
-  # Requests per window for the two routes a stranger can write to, in DRF's
-  # "<count>/<second|minute|hour|day>" syntax.
+  # Requests per window for the two routes a stranger can write to, written
+  # "<count>/<second|minute|hour|day>".
   comment-rate-limit: ${COMMENT_RATE_LIMIT:20/hour}
   reaction-rate-limit: ${REACTION_RATE_LIMIT:60/min}
 
   # Largest image the upload endpoint accepts, in bytes.
   max-upload-size: ${MAX_UPLOAD_SIZE:10485760}
 
-  # Creates this account on startup if no user by that name exists yet -- the
-  # replacement for `manage.py createsuperuser`. An existing account is never
-  # touched, so leaving these set does not reset a password changed since.
+  # Creates this account on startup if no user by that name exists yet. An
+  # existing account is never touched, so leaving these set does not reset a
+  # password changed since.
   admin-username: ${ADMIN_USERNAME:}
   admin-password: ${ADMIN_PASSWORD:}
-  # PBKDF2 rounds for newly hashed passwords; Django 6.0's own default, so a
-  # hash written here is one Django would accept unchanged.
-  password-iterations: 1200000
-
   storage:
     bucket: ${AWS_STORAGE_BUCKET_NAME:ziantsabit-media}
     access-key: ${AWS_S3_ACCESS_KEY_ID:rustfsadmin}

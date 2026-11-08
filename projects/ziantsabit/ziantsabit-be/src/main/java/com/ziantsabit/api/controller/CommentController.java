@@ -8,12 +8,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.ziantsabit.api.dto.ApiDocs;
+import com.ziantsabit.api.dto.CommentRequest;
 import com.ziantsabit.api.dto.PageResponse;
 import com.ziantsabit.api.model.Comment;
 import com.ziantsabit.api.query.CommentQuery;
@@ -27,6 +26,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Visitors' comments: listed per post with {@code ?post=<slug>}, written by
@@ -77,8 +77,8 @@ public class CommentController {
      */
     @PostMapping
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            content = @Content(schema = @Schema(implementation = ApiDocs.CommentInput.class)))
-    public ResponseEntity<Comment> create(@RequestBody(required = false) Object body, HttpServletRequest request) {
+            content = @Content(schema = @Schema(implementation = CommentRequest.class)))
+    public ResponseEntity<Comment> create(@RequestBody(required = false) JsonNode body, HttpServletRequest request) {
         commentThrottle.check(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(body));
     }
@@ -88,20 +88,13 @@ public class CommentController {
         return visible(id, request);
     }
 
-    @PutMapping("/{id}")
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            content = @Content(schema = @Schema(implementation = ApiDocs.CommentInput.class)))
-    public Comment replace(@PathVariable String id, @RequestBody(required = false) Object body,
-            HttpServletRequest request) {
-        return service.update(visible(id, request), body, false);
-    }
 
     @PatchMapping("/{id}")
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            content = @Content(schema = @Schema(implementation = ApiDocs.CommentInput.class)))
-    public Comment patch(@PathVariable String id, @RequestBody(required = false) Object body,
+            content = @Content(schema = @Schema(implementation = CommentRequest.class)))
+    public Comment patch(@PathVariable String id, @RequestBody(required = false) JsonNode body,
             HttpServletRequest request) {
-        return service.update(visible(id, request), body, true);
+        return service.update(visible(id, request), body);
     }
 
     @DeleteMapping("/{id}")

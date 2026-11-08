@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.ziantsabit"
-version = "1.0.0"
+version = "2.0.0"
 description = "Content API for ziantsabit.com"
 
 java {
@@ -21,17 +21,19 @@ repositories {
 dependencyManagement {
     imports {
         mavenBom("software.amazon.awssdk:bom:2.55.13")
-        // Matches the postgres:16-alpine image docker-compose.yml runs, so the
-        // suite exercises the same server major the API is deployed against.
-        mavenBom("io.zonky.test.postgres:embedded-postgres-binaries-bom:16.15.0")
+        // The Postgres version production runs (18.4), so the suite -- and the
+        // V4 migration test in particular, which reads the system catalogue --
+        // exercises the server the API is deployed against.
+        mavenBom("io.zonky.test.postgres:embedded-postgres-binaries-bom:18.4.0")
     }
 }
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
-    // Sessions live in Postgres, as Django's did: a restart or a redeploy does
+    // Sessions live in Postgres, so a restart or a redeploy does
     // not log the owner out of the admin page.
     implementation("org.springframework.boot:spring-boot-starter-session-jdbc")
     implementation("org.springframework.boot:spring-boot-starter-flyway")

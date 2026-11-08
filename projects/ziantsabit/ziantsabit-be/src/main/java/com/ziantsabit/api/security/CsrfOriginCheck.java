@@ -16,7 +16,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * The half of Django's CSRF check that a token cannot do: an {@code Origin}
+ * The half of a CSRF check that a token cannot do: an {@code Origin}
  * that is neither this API nor one of {@code CSRF_TRUSTED_ORIGINS} is refused
  * before the token is even looked at. Applied to the same requests the token
  * check is -- session-authenticated writes, and login.

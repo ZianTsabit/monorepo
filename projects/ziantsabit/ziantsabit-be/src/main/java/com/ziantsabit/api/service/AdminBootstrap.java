@@ -11,12 +11,11 @@ import com.ziantsabit.api.security.UserAccounts;
 
 /**
  * Creates the owner's account from {@code ADMIN_USERNAME} / {@code ADMIN_PASSWORD}
- * on startup -- the stand-in for {@code manage.py createsuperuser}, since a fresh
- * database has no user in it and nothing can be written without one.
+ * on startup, since a fresh database has no user in it and nothing can be
+ * written without one.
  *
  * <p>Only ever creates. An account that already exists is left exactly as it is,
- * so leaving the variables set cannot quietly reset a password changed since,
- * and an account carried over from Django is never touched.
+ * so leaving the variables set cannot quietly reset a password changed since.
  */
 @Component
 public class AdminBootstrap implements ApplicationRunner {

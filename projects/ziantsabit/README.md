@@ -72,9 +72,7 @@ set -a; source .env; set +a                     # POSTGRES_*, AWS_S3_*
 ADMIN_USERNAME=me ADMIN_PASSWORD=change-me ./gradlew bootRun
 ```
 
-The API is then at <http://localhost:8000/api/> and Swagger UI at <http://localhost:8000/api/docs/>. Flyway creates the schema on startup. `ADMIN_USERNAME`/`ADMIN_PASSWORD` create the account writes need, if it does not exist yet; they replace `manage.py createsuperuser`, and never touch an existing account.
-
-**It was a Django backend until October 2026, and it still uses Django's database.** The tables keep their Django names (`myapp_post`, `auth_user`, …), Django's password hashes still verify, and every response has the same JSON shape — a database the Django backend built is picked up as-is, with no data migration, and the Django image could be pointed back at it. See `CLAUDE.md` for how.
+The API is then at <http://localhost:8000/api/> and Swagger UI at <http://localhost:8000/api/docs/>. Flyway creates the schema on startup. `ADMIN_USERNAME`/`ADMIN_PASSWORD` create the account writes need, if it does not exist yet, and never touch an existing account.
 
 ### Endpoints
 
@@ -82,18 +80,18 @@ The API is then at <http://localhost:8000/api/> and Swagger UI at <http://localh
 | --- | --- | --- |
 | `GET` | `/api/posts/` | List, 20 per page. `?tag=`, `?status=`, `?ordering=recent\|updated\|views`, `?published_after=`, `?published_before=` |
 | `POST` | `/api/posts/` | Create |
-| `GET` `PUT` `PATCH` `DELETE` | `/api/posts/{slug}/` | One post |
+| `GET` `PATCH` `DELETE` | `/api/posts/{slug}/` | One post |
 | `POST` | `/api/posts/{slug}/view/` | Count a read (open to anyone) |
 | `GET` `POST` | `/api/posts/{slug}/reactions/` | The emoji bar; POST toggles one (open to anyone, rate-limited) |
 | `GET` | `/api/posts/tags/` | Every tag in use, with counts |
 | `GET` | `/api/posts/stats/` | Statistics for the admin page (owner only) |
 | `GET` `POST` | `/api/books/` | The book catalogue, 12 per page. `?genre=`, `?search=`, `?status=`, `?ordering=` |
-| `GET` `PUT` `PATCH` `DELETE` | `/api/books/{slug}/` | One book |
+| `GET` `PATCH` `DELETE` | `/api/books/{slug}/` | One book |
 | `GET` | `/api/books/genres/` | Every genre in use, with counts |
 | `GET` `POST` | `/api/comments/` | Comments; `?post=<slug>` for one thread. POST open to anyone, rate-limited |
-| `GET` `PUT` `PATCH` `DELETE` | `/api/comments/{id}/` | One comment (writes: owner only) |
+| `GET` `PATCH` `DELETE` | `/api/comments/{id}/` | One comment (writes: owner only) |
 | `GET` | `/api/pages/` | The CV and About page documents |
-| `GET` `PUT` `PATCH` | `/api/pages/{cv\|about}/` | One page |
+| `GET` `PATCH` | `/api/pages/{cv\|about}/` | One page |
 | `POST` | `/api/uploads/images/` | Upload an image, get its URL back (owner only) |
 | `GET` / `POST` / `POST` | `/api/auth/session/`, `/login/`, `/logout/` | Session login for the SPA's admin page |
 | `GET` | `/api/docs/` · `/api/redoc/` · `/api/schema/` | Swagger UI · ReDoc · OpenAPI 3 document |
@@ -113,17 +111,17 @@ curl -u me:change-me -X POST http://localhost:8000/api/posts/ \
 
 Anonymous callers only ever see published posts and books — on the detail routes too, not just the lists. An unrecognised `?status=` or `?ordering=` is a `400`, not an empty list.
 
-There is no Django admin any more; the SPA's own `/admin` page is the editor.
+The SPA's own `/admin` page is the editor.
 
 ### Tests
 
 ```bash
-./gradlew test                                    # whole suite (312 tests)
+./gradlew test                                    # whole suite (328 tests)
 ./gradlew test --tests BookApiTest                # one class
 ./gradlew test --tests 'BookApiTest$Pagination'   # one nested group
 ```
 
-The suite starts its own Postgres (an embedded binary, no Docker needed) and drives the real server over HTTP, so cookies, CORS and CSRF are exercised as a browser meets them. It is a port of the Django suite, test for test, plus checks that Django's password hashes still verify.
+The suite starts its own Postgres (an embedded binary, no Docker needed) and drives the real server over HTTP, so cookies, CORS and CSRF are exercised as a browser meets them. Each test starts from a clean database.
 
 ### Backend in Docker
 
@@ -134,7 +132,7 @@ docker compose up --build
 
 Starts the API only, against the Postgres and RustFS servers named in `ziantsabit-be/.env` — neither is created by this repo, and the bucket must already exist and be public-read. Flyway migrates on startup. The image is built from source — there is no bind mount or autoreload, so for an edit loop run `./gradlew bootRun` on the host.
 
-Production is `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`, reading secrets from `ziantsabit-be/.env`. The variable names are unchanged from the Django deployment, so an existing `.env` works as-is.
+Production is `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`, reading secrets from `ziantsabit-be/.env`.
 
 ```bash
 docker compose logs -f api
@@ -151,7 +149,7 @@ Read by `src/main/resources/application.yml`; the defaults are what a bare `./gr
 | `POSTGRES_HOST` / `_PORT` | `localhost` / `5432` | `host.docker.internal` for a server on the Docker host |
 | `POSTGRES_SSLMODE` / `_SSLROOTCERT` | `prefer` / — | For a database across a network |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | — | Create this account at startup if missing |
-| `ALLOWED_HOSTS` | `localhost 127.0.0.1 [::1]` | Space-separated. `DJANGO_ALLOWED_HOSTS` is still read as a fallback |
+| `ALLOWED_HOSTS` | `localhost 127.0.0.1 [::1]` | Space-separated |
 | `CORS_ALLOWED_ORIGINS` | `:5173`, `:4173`, `:8080` on localhost and 127.0.0.1 | Space-separated. Must include whichever origin serves the SPA |
 | `CSRF_TRUSTED_ORIGINS` | the CORS list | Origins allowed to make session-authenticated writes |
 | `SESSION_COOKIE_SECURE` / `CSRF_COOKIE_SECURE` | `false` | `true` behind HTTPS |

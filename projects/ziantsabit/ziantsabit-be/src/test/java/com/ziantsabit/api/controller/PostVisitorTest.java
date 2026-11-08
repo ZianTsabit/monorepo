@@ -16,10 +16,7 @@ import com.ziantsabit.api.model.Reaction;
 import com.ziantsabit.api.support.ApiTestBase;
 import com.ziantsabit.api.support.Response;
 
-/**
- * Ported from the Django suite's PostThemeTests, VisitorSwitchTests,
- * TagVocabularyTests, CommentCountTests and ReactionTests.
- */
+/** What a visitor meets on a post: its theme, the comment and reaction switches, tags, counts and reactions. */
 class PostVisitorTest extends ApiTestBase {
 
     static final String EMOJI = Reaction.EMOJI_VALUES.get(0);
@@ -79,7 +76,7 @@ class PostVisitorTest extends ApiTestBase {
         void aSchemeTheSiteDoesNotHaveIsRejected() {
             Response response = owner().patch(detail(plain), body("theme", "sepia"));
             assertThat(response.status()).isEqualTo(400);
-            assertThat(response.get("theme")).isEqualTo(List.of("\"sepia\" is not a valid choice."));
+            assertThat(response.get("theme")).isEqualTo(List.of("Must be one of: light, dark, rain."));
         }
 
         @Test
@@ -152,7 +149,7 @@ class PostVisitorTest extends ApiTestBase {
         @Test
         void aVisitorMayNotCommentOnAClosedPost() {
             assertThat(client.post("/api/comments/", commentBody(closed)).status()).isEqualTo(400);
-            assertThat(count("myapp_comment")).isZero();
+            assertThat(count("comment")).isZero();
         }
 
         @Test
@@ -190,7 +187,7 @@ class PostVisitorTest extends ApiTestBase {
             Response response = client.post(reactions(closed), body("emoji", EMOJI, "visitor", "abc"));
             assertThat(response.status()).isEqualTo(400);
             assertThat(response.get("emoji")).isEqualTo(List.of("Reactions are turned off for this post."));
-            assertThat(count("myapp_reaction")).isZero();
+            assertThat(count("reaction")).isZero();
         }
 
         @Test
@@ -216,7 +213,7 @@ class PostVisitorTest extends ApiTestBase {
         @Test
         void theOwnerCanCloseAThreadWithAPatch() {
             assertThat(owner().patch(detail(open), body("comments_enabled", false)).status()).isEqualTo(200);
-            Map<String, Object> row = row("myapp_post", open.id());
+            Map<String, Object> row = row("post", open.id());
             assertThat(row.get("comments_enabled")).isEqualTo(false);
             assertThat(row.get("reactions_enabled")).isEqualTo(true);
         }
@@ -224,7 +221,7 @@ class PostVisitorTest extends ApiTestBase {
         @Test
         void aVisitorCannotReopenAThread() {
             assertThat(client.patch(detail(closed), body("comments_enabled", true)).status()).isEqualTo(403);
-            assertThat(row("myapp_post", closed.id()).get("comments_enabled")).isEqualTo(false);
+            assertThat(row("post", closed.id()).get("comments_enabled")).isEqualTo(false);
         }
     }
 
@@ -234,8 +231,8 @@ class PostVisitorTest extends ApiTestBase {
         @BeforeEach
         void fixtures() {
             createUser();
-            published("First", p -> p.tags = List.of("Django", "Postgres"));
-            published("Second", p -> p.tags = List.of("django"));
+            published("First", p -> p.tags = List.of("Spring", "Postgres"));
+            published("Second", p -> p.tags = List.of("spring"));
             post("Draft", p -> p.tags = List.of("Unpublished Thing"));
         }
 
@@ -253,8 +250,8 @@ class PostVisitorTest extends ApiTestBase {
         @Test
         void spellingsAreFoldedIntoOneOption() {
             Map<Object, Object> counts = counts(client.get("/api/posts/tags/"));
-            assertThat(counts.get("Django")).isEqualTo(2);
-            assertThat(counts).doesNotContainKey("django");
+            assertThat(counts.get("Spring")).isEqualTo(2);
+            assertThat(counts).doesNotContainKey("spring");
         }
 
         @Test
@@ -270,7 +267,7 @@ class PostVisitorTest extends ApiTestBase {
         @Test
         void orderedCommonestFirstThenAlphabetically() {
             assertThat(client.get("/api/posts/tags/").list().stream().map(r -> r.get("name")).toList())
-                    .containsExactly("Django", "Postgres");
+                    .containsExactly("Spring", "Postgres");
         }
 
         @Test
@@ -285,7 +282,7 @@ class PostVisitorTest extends ApiTestBase {
 
         @Test
         void anUntaggedSiteReportsAnEmptyList() {
-            jdbc.sql("DELETE FROM myapp_post").update();
+            jdbc.sql("DELETE FROM post").update();
             Response response = client.get("/api/posts/tags/");
             assertThat(response.status()).isEqualTo(200);
             assertThat(response.list()).isEmpty();
@@ -410,7 +407,7 @@ class PostVisitorTest extends ApiTestBase {
             react(EMOJI, "abc");
             Response response = react(EMOJI, "abc");
             assertThat(counts(response).get(EMOJI)).isEqualTo(0);
-            assertThat(count("myapp_reaction")).isZero();
+            assertThat(count("reaction")).isZero();
         }
 
         @Test
@@ -444,7 +441,7 @@ class PostVisitorTest extends ApiTestBase {
         void anEmojiOffTheListIsRejected() {
             Response response = react(RETIRED, "abc");
             assertThat(response.status()).isEqualTo(400);
-            assertThat(count("myapp_reaction")).isZero();
+            assertThat(count("reaction")).isZero();
         }
 
         @Test
@@ -472,7 +469,7 @@ class PostVisitorTest extends ApiTestBase {
             createUser();
             reaction(post, EMOJI, "abc");
             assertThat(owner().delete(detail(post)).status()).isEqualTo(204);
-            assertThat(count("myapp_reaction")).isZero();
+            assertThat(count("reaction")).isZero();
         }
     }
 }

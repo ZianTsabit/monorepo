@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * The emoji bar under a post. A row per (post, emoji, visitor) in
- * {@code myapp_reaction}; this class holds the fixed vocabulary.
+ * {@code reaction}; this class holds the fixed vocabulary.
  *
  * <p>{@code visitor} is not a user. It is an opaque token the browser makes up
  * once and keeps in localStorage, so uniqueness is a convenience, not a

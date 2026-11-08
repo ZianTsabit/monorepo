@@ -45,8 +45,8 @@ public class WebConfig {
     /**
      * {@code /api/posts/} and {@code /api/posts} are the same route.
      *
-     * <p>Django's URLs all ended in a slash, and so does every URL the SPA
-     * builds; Spring matches neither form to the other by default. Trimming the
+     * <p>Every URL the SPA builds ends in a slash; Spring matches neither form
+     * to the other by default. Trimming the
      * slash before anything else sees the request -- the security rules
      * included, which is why this runs first -- keeps both working, so neither
      * the SPA nor a bookmarked {@code /api/docs/} needs to change.
@@ -76,8 +76,8 @@ public class WebConfig {
     }
 
     /**
-     * Refuse a request addressed to a host the API does not serve, as Django's
-     * ALLOWED_HOSTS did. Pagination links are built from the Host header, so a
+     * Refuse a request addressed to a host the API does not serve
+     * ({@code ALLOWED_HOSTS}). Pagination links are built from the Host header, so a
      * forged one would otherwise be echoed back as an absolute URL.
      *
      * <p>The health check is exempt: the container probes itself on 127.0.0.1,
@@ -104,7 +104,7 @@ public class WebConfig {
         return registration;
     }
 
-    /** Django's matching: exact, {@code .example.com} for the domain and its subdomains, or {@code *}. */
+    /** Exact, {@code .example.com} for the domain and its subdomains, or {@code *} for any host. */
     static boolean hostAllowed(String host, List<String> allowed) {
         for (String pattern : allowed) {
             if (pattern.equals("*") || pattern.equals(host)) {

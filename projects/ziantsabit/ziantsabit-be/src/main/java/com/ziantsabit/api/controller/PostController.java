@@ -10,15 +10,15 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.ziantsabit.api.dto.ApiDocs;
 import com.ziantsabit.api.dto.LabelCount;
 import com.ziantsabit.api.dto.PageResponse;
+import com.ziantsabit.api.dto.PostRequest;
 import com.ziantsabit.api.dto.PostStats;
+import com.ziantsabit.api.dto.ReactionRequest;
 import com.ziantsabit.api.dto.ReactionSummary;
 import com.ziantsabit.api.dto.ViewCount;
 import com.ziantsabit.api.model.Post;
@@ -36,6 +36,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Posts, addressed by slug. Reads are open; writes need the owner, apart from
@@ -86,8 +87,8 @@ public class PostController {
     }
 
     @PostMapping
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(schema = @Schema(implementation = ApiDocs.PostInput.class)))
-    public ResponseEntity<Post> create(@RequestBody(required = false) Object body) {
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(schema = @Schema(implementation = PostRequest.class)))
+    public ResponseEntity<Post> create(@RequestBody(required = false) JsonNode body) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(body));
     }
 
@@ -108,18 +109,12 @@ public class PostController {
         return visible(slug, request);
     }
 
-    @PutMapping("/{slug}")
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(schema = @Schema(implementation = ApiDocs.PostInput.class)))
-    public Post replace(@PathVariable String slug, @RequestBody(required = false) Object body,
-            HttpServletRequest request) {
-        return service.update(visible(slug, request), body, false);
-    }
 
     @PatchMapping("/{slug}")
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(schema = @Schema(implementation = ApiDocs.PostInput.class)))
-    public Post patch(@PathVariable String slug, @RequestBody(required = false) Object body,
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(schema = @Schema(implementation = PostRequest.class)))
+    public Post patch(@PathVariable String slug, @RequestBody(required = false) JsonNode body,
             HttpServletRequest request) {
-        return service.update(visible(slug, request), body, true);
+        return service.update(visible(slug, request), body);
     }
 
     @DeleteMapping("/{slug}")
@@ -151,10 +146,10 @@ public class PostController {
 
     @PostMapping("/{slug}/reactions")
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            content = @Content(schema = @Schema(implementation = ApiDocs.ReactionInput.class)))
+            content = @Content(schema = @Schema(implementation = ReactionRequest.class)))
     @Operation(summary = "Toggle one emoji for one browser and return the whole bar again. Sending the same "
             + "emoji twice removes it.")
-    public ReactionSummary react(@PathVariable String slug, @RequestBody(required = false) Object body,
+    public ReactionSummary react(@PathVariable String slug, @RequestBody(required = false) JsonNode body,
             HttpServletRequest request) {
         reactionThrottle.check(request);
         return reactions.react(visible(slug, request), body);

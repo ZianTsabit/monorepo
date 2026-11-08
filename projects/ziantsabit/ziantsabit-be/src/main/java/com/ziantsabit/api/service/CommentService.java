@@ -1,12 +1,12 @@
 package com.ziantsabit.api.service;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.ziantsabit.api.dto.CommentRequest;
 import com.ziantsabit.api.exception.ApiException;
 import com.ziantsabit.api.model.Comment;
 import com.ziantsabit.api.model.Post;
@@ -15,7 +15,9 @@ import com.ziantsabit.api.repository.CommentRepository;
 import com.ziantsabit.api.repository.PostRepository;
 import com.ziantsabit.api.security.Viewer;
 import com.ziantsabit.api.util.Sql;
-import com.ziantsabit.api.validation.Form;
+import com.ziantsabit.api.validation.RequestBodies;
+
+import tools.jackson.databind.JsonNode;
 
 /** Validating and saving comments. */
 @Service
@@ -25,10 +27,12 @@ public class CommentService {
 
     private final CommentRepository comments;
     private final PostRepository posts;
+    private final RequestBodies bodies;
 
-    public CommentService(CommentRepository comments, PostRepository posts) {
+    public CommentService(CommentRepository comments, PostRepository posts, RequestBodies bodies) {
         this.comments = comments;
         this.posts = posts;
+        this.bodies = bodies;
     }
 
     public long count(CommentQuery query) {
@@ -65,64 +69,39 @@ public class CommentService {
      * The owner may file one hidden.
      */
     @Transactional
-    public Comment create(Object body) {
-        Form form = Form.of(body, false);
-        Fields fields = read(form, new Fields());
-        String status = Viewer.isAuthenticated() && fields.status != null ? fields.status : Comment.PUBLISHED;
-        Instant now = Sql.now();
-        return comments.get(comments.insert(fields.postId, fields.authorName, fields.body, status, now));
+    public Comment create(JsonNode body) {
+        CommentRequest request = bodies.read(body, CommentRequest.class);
+        long postId = postIdFor(request.post());
+        String status = Viewer.isAuthenticated() && request.status() != null ? request.status() : Comment.PUBLISHED;
+        return comments.get(comments.insert(postId, authorName(request), request.body().strip(), status, Sql.now()));
     }
 
-    /** The owner's edit: hiding, restoring, or correcting a comment. */
+    /** The owner's edit: hiding, restoring, or correcting a comment. A PATCH, merged onto the stored one. */
     @Transactional
-    public Comment update(Comment comment, Object body, boolean partial) {
-        Fields fields = new Fields();
-        fields.postId = comments.postIdOf(comment.id());
-        fields.authorName = comment.authorName();
-        fields.body = comment.body();
-        fields.status = comment.status();
-        read(Form.of(body, partial), fields);
-        comments.update(comment.id(), fields.postId, fields.authorName, fields.body, fields.status, Sql.now());
+    public Comment update(Comment comment, JsonNode body) {
+        CommentRequest request = bodies.patch(CommentRequest.of(comment), body, CommentRequest.class);
+        long postId = postIdFor(request.post());
+        comments.update(comment.id(), postId, authorName(request), request.body().strip(),
+                request.status() == null ? comment.status() : request.status(), Sql.now());
         return comments.get(comment.id());
     }
 
-    private static final class Fields {
-        Long postId;
-        String authorName;
-        String body;
-        String status;
+    private long postIdFor(String slug) {
+        Post post = posts.findBySlug(slug)
+                .orElseThrow(() -> ApiException.field("post", "No post found with that slug."));
+        String refusal = refusal(post);
+        if (refusal != null) {
+            throw ApiException.field("post", refusal);
+        }
+        return post.id();
     }
 
-    private Fields read(Form form, Fields fields) {
-        form.slugReference("post", true, posts::findBySlug).ifPresent(post -> {
-            String refusal = refusal(post);
-            if (refusal != null) {
-                form.error("post", refusal);
-            } else {
-                fields.postId = post.id();
-            }
-        });
-        form.text("author_name", true, false, 80).ifPresent(name -> {
-            // Inner runs collapsed too, so a name padded out to look like a
-            // heading in the thread cannot be.
-            String collapsed = String.join(" ", WHITESPACE.split(name.strip()));
-            if (collapsed.isEmpty()) {
-                form.error("author_name", "Give a name to post under.");
-            } else {
-                fields.authorName = collapsed;
-            }
-        });
-        // Only the ends are trimmed: the newlines inside are paragraphs.
-        form.text("body", true, false, 2000).ifPresent(text -> {
-            if (text.strip().isEmpty()) {
-                form.error("body", "Write something first.");
-            } else {
-                fields.body = text.strip();
-            }
-        });
-        form.choice("status", false, Comment.STATUSES, false).ifPresent(status -> fields.status = status);
-        form.check();
-        return fields;
+    /**
+     * Inner runs of whitespace collapsed too, so a name padded out to look
+     * like a heading in the thread cannot be.
+     */
+    private static String authorName(CommentRequest request) {
+        return String.join(" ", WHITESPACE.split(request.authorName().strip()));
     }
 
     /**

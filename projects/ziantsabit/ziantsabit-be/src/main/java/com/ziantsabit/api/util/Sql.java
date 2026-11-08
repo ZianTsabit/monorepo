@@ -57,7 +57,7 @@ public final class Sql {
         return new ArrayList<>(Arrays.asList((String[]) array.getArray()));
     }
 
-    /** Escape a user's search term for LIKE/ILIKE, as Django's icontains did. */
+    /** A user's search term as a LIKE/ILIKE "contains" pattern, its wildcards escaped. */
     public static String containing(String term) {
         return "%" + term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
     }
@@ -65,8 +65,7 @@ public final class Sql {
     /**
      * WHERE clauses and their parameters, built up one filter at a time.
      * Every route that lists or looks up a row assembles one of these, so a
-     * filter added for the list applies to the detail route too -- as it did
-     * when both went through one Django queryset.
+     * filter added for the list applies to the detail route too.
      */
     public static final class Where {
 

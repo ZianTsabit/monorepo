@@ -18,7 +18,7 @@ import com.ziantsabit.api.support.Api.Part;
 import com.ziantsabit.api.support.ApiTestBase;
 import com.ziantsabit.api.support.Response;
 
-/** Ported from the Django suite's ImageUploadTests. */
+/** POST /api/uploads/images/. */
 class ImageUploadTest extends ApiTestBase {
 
     static final String URL = "/api/uploads/images/";

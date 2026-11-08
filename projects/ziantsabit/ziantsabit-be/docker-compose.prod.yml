@@ -12,7 +12,7 @@ services:
   api:
     environment:
       # The API's own hostname, space-separated. Not the site's.
-      ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:?e.g. api.example.com}"
+      ALLOWED_HOSTS: "${ALLOWED_HOSTS:?e.g. api.example.com}"
       # The origin(s) serving the SPA, scheme included. Anything not listed here
       # has every response discarded by the browser.
       CORS_ALLOWED_ORIGINS: "${SITE_ORIGINS:?e.g. https://example.com https://www.example.com}"

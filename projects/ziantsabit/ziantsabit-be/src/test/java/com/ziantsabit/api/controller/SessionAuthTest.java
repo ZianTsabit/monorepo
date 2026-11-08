@@ -15,7 +15,6 @@ import com.ziantsabit.api.support.Response;
 /**
  * The cookie-and-CSRF flow behind the SPA's /admin page, through a client that
  * keeps cookies and enforces nothing for us -- CSRF is what these are about.
- * Ported from the Django suite's SessionAuthTests.
  */
 class SessionAuthTest extends ApiTestBase {
 
@@ -50,7 +49,7 @@ class SessionAuthTest extends ApiTestBase {
         assertThat(response.status()).isEqualTo(200);
         assertThat(response.get("authenticated")).isEqualTo(false);
         assertThat(response.map()).containsEntry("username", null);
-        assertThat(response.headers("Set-Cookie")).anyMatch(cookie -> cookie.startsWith("csrftoken="));
+        assertThat(response.headers("Set-Cookie")).anyMatch(cookie -> cookie.startsWith("XSRF-TOKEN="));
     }
 
     @Test
@@ -75,7 +74,7 @@ class SessionAuthTest extends ApiTestBase {
     @Test
     void loginStampsLastLogin() {
         logIn();
-        assertThat(jdbc.sql("SELECT last_login FROM auth_user").query(Object.class).single()).isNotNull();
+        assertThat(jdbc.sql("SELECT last_login FROM app_user").query(Object.class).single()).isNotNull();
     }
 
     @Test
@@ -132,7 +131,7 @@ class SessionAuthTest extends ApiTestBase {
         Response response = browser.post("/api/posts/", body("title", "No Token"));
         assertThat(response.status()).isEqualTo(403);
         assertThat(response.string("detail")).isEqualTo("CSRF Failed: CSRF token missing.");
-        assertThat(count("myapp_post")).isZero();
+        assertThat(count("post")).isZero();
     }
 
     @Test
@@ -158,13 +157,13 @@ class SessionAuthTest extends ApiTestBase {
         assertThat(browser.get(detail).status()).isEqualTo(200);
         Response response = browser.patch(detail, body("status", "published"), Map.of("X-CSRFToken", token));
         assertThat(response.status()).isEqualTo(200);
-        assertThat(row("myapp_post", draft.id()).get("published_at")).isNotNull();
+        assertThat(row("post", draft.id()).get("published_at")).isNotNull();
     }
 
     @Test
     void anAnonymousVisitorNeedsNoTokenToComment() {
-        // DRF only checked CSRF on session-authenticated requests; the public
-        // pages send none, so a visitor's comment must not need one.
+        // CSRF is checked only on session-authenticated writes; the public
+        // pages send no token, so a visitor's comment must not need one.
         Post post = published("Open");
         Response response = anonymous().post("/api/comments/",
                 body("post", post.slug(), "author_name", "Ada", "body", "Hi."));

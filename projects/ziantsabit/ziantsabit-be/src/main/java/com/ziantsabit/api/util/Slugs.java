@@ -4,7 +4,7 @@ import java.text.Normalizer;
 import java.util.Locale;
 import java.util.function.Predicate;
 
-/** URL slugs, made the way Django's {@code slugify} made them. */
+/** URL slugs: ASCII, lower case, hyphen-separated. */
 public final class Slugs {
 
     private Slugs() {
@@ -13,10 +13,9 @@ public final class Slugs {
     /**
      * Fold to ASCII, lower-case, drop punctuation, hyphenate whitespace.
      *
-     * <p>Kept byte-for-byte compatible with Django's, because the slugs it made
-     * are already in the database and in every link anyone has shared: a title
-     * edited after the move must not slugify differently from one edited
-     * before it.
+     * <p>Don't change the rules lightly: the slugs already made are in the
+     * database and in every link anyone has shared, and a title edited later
+     * must not slugify differently from one edited before.
      */
     public static String slugify(String value) {
         String ascii = Normalizer.normalize(value, Normalizer.Form.NFKD).replaceAll("[^\\x00-\\x7F]", "");

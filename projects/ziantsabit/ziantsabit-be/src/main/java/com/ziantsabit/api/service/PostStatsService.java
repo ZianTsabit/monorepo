@@ -73,7 +73,7 @@ public class PostStatsService {
                 viewsByDay);
     }
 
-    /** Python's round(x, 1): half-to-even on the double's exact value. */
+    /** One decimal place, half-to-even on the double's exact value, so 0.25 rounds to 0.2. */
     public static double round1(double value) {
         return new BigDecimal(value).setScale(1, RoundingMode.HALF_EVEN).doubleValue();
     }

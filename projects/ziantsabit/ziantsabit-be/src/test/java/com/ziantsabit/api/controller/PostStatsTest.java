@@ -18,7 +18,7 @@ import com.ziantsabit.api.service.PostStatsService;
 import com.ziantsabit.api.support.ApiTestBase;
 import com.ziantsabit.api.support.Response;
 
-/** GET /api/posts/stats/. Ported from the Django suite's PostStatsTests. */
+/** GET /api/posts/stats/. */
 class PostStatsTest extends ApiTestBase {
 
     Post top;
@@ -26,7 +26,7 @@ class PostStatsTest extends ApiTestBase {
 
     Post publishedAt(String title, String when, int views) {
         Post post = published(title, p -> p.publishedAt = Instant.parse(when));
-        update("myapp_post", post.id(), Map.of("view_count", views));
+        update("post", post.id(), Map.of("view_count", views));
         return post;
     }
 
@@ -97,7 +97,7 @@ class PostStatsTest extends ApiTestBase {
 
     @Test
     void anEmptySiteReportsZeroesRatherThanFailing() {
-        jdbc.sql("DELETE FROM myapp_post").update();
+        jdbc.sql("DELETE FROM post").update();
         Map<String, Object> data = stats();
         assertThat(data.get("total")).isEqualTo(0);
         assertThat(data.get("total_views")).isEqualTo(0);
@@ -137,25 +137,25 @@ class PostStatsTest extends ApiTestBase {
 
     @Test
     void viewsPerDayIsEveryViewOverTheDaysSinceFirstPublication() {
-        jdbc.sql("DELETE FROM myapp_post").update();
+        jdbc.sql("DELETE FROM post").update();
         Post post = published("Only One", p -> p.publishedAt = Instant.now().minus(9, ChronoUnit.DAYS));
-        update("myapp_post", post.id(), Map.of("view_count", 100));
+        update("post", post.id(), Map.of("view_count", 100));
         // Ten days live, both ends counted -- not nine.
         assertThat(stats().get("views_per_day")).isEqualTo(10.0);
     }
 
     @Test
     void viewsPerDayIgnoresReadsADraftCollectedBeforePublishing() {
-        jdbc.sql("DELETE FROM myapp_post").update();
+        jdbc.sql("DELETE FROM post").update();
         Post unfinished = post("Unfinished");
-        update("myapp_post", unfinished.id(), Map.of("view_count", 12));
+        update("post", unfinished.id(), Map.of("view_count", 12));
         Map<String, Object> data = stats();
         assertThat(data.get("total_views")).isEqualTo(12);
         assertThat(data.get("views_per_day")).isEqualTo(0.0);
     }
 
     @Test
-    void roundingIsHalfToEvenLikePython() {
+    void roundingIsHalfToEven() {
         assertThat(PostStatsService.round1(0.25)).isEqualTo(0.2);
         assertThat(PostStatsService.round1(133.33333)).isEqualTo(133.3);
         assertThat(PostStatsService.round1(2.675)).isEqualTo(2.7);

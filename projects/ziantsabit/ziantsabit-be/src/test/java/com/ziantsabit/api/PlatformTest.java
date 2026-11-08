@@ -7,58 +7,19 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
-import com.ziantsabit.api.security.DjangoPasswordEncoder;
 import com.ziantsabit.api.support.ApiTestBase;
 import com.ziantsabit.api.support.Response;
 
-/** What the Django project gave for free and the port has to provide itself. */
+/** The platform around the resources: accounts, schema, docs, health, hosts and error shapes. */
 class PlatformTest extends ApiTestBase {
-
-    // Computed with Python's hashlib.pbkdf2_hmac, which is exactly what
-    // Django's PBKDF2PasswordHasher runs.
-    static final String DJANGO_HASH =
-            "pbkdf2_sha256$1000$abcdefghijklmnopqrstuv$yH2VGHMchEp1vrLNWnm89deW1DEjt3ZQbjqugpX9tLo=";
-
-    @Test
-    void aPasswordHashedByDjangoStillVerifies() {
-        DjangoPasswordEncoder encoder = new DjangoPasswordEncoder(1000);
-        assertThat(encoder.matches("pw-for-tests", DJANGO_HASH)).isTrue();
-        assertThat(encoder.matches("wrong", DJANGO_HASH)).isFalse();
-        assertThat(encoder.matches("pw-for-tests", "!unusable")).isFalse();
-    }
-
-    @Test
-    void aHashWrittenHereIsInDjangosFormat() {
-        String hash = new DjangoPasswordEncoder(1200000).encode("secret");
-        assertThat(hash).matches("pbkdf2_sha256\\$1200000\\$[A-Za-z0-9]{22}\\$[A-Za-z0-9+/]{43}=");
-    }
-
-    @Test
-    void anAccountCarriedOverFromDjangoCanWrite() {
-        jdbc.sql("""
-                INSERT INTO auth_user (password, is_superuser, username, first_name, last_name, email, is_staff,
-                                       is_active, date_joined)
-                VALUES (:hash, true, 'legacy', '', '', '', true, true, now())""")
-                .param("hash", DJANGO_HASH).update();
-        Response response = anonymous().basicAuth("legacy", "pw-for-tests").post("/api/posts/", body("title", "Hi"));
-        assertThat(response.status()).isEqualTo(201);
-    }
 
     @Test
     void anInactiveAccountIsRefused() {
         createUser();
-        jdbc.sql("UPDATE auth_user SET is_active = false").update();
+        jdbc.sql("UPDATE app_user SET enabled = false").update();
         Response response = owner().post("/api/posts/", body("title", "Hi"));
         assertThat(response.status()).isEqualTo(403);
         assertThat(response.string("detail")).isEqualTo("User inactive or deleted.");
-    }
-
-    @Test
-    void theApiIndexListsTheResources() {
-        Response response = client.get("/api/");
-        assertThat(response.status()).isEqualTo(200);
-        assertThat(response.map().keySet()).containsExactly("posts", "books", "comments", "pages");
-        assertThat(response.string("posts")).isEqualTo(base() + "/api/posts/");
     }
 
     @Test
@@ -79,12 +40,8 @@ class PlatformTest extends ApiTestBase {
     }
 
     @Test
-    void swaggerAndRedocAreServed() {
-        Map<String, String> html = Map.of("Accept", "text/html");
-        assertThat(client.get("/api/docs/", html).status()).isIn(200, 302);
-        Response redoc = client.get("/api/redoc/", html);
-        assertThat(redoc.status()).isEqualTo(200);
-        assertThat(redoc.body()).contains("<redoc spec-url=\"/api/schema\">");
+    void swaggerUiIsServed() {
+        assertThat(client.get("/api/docs/", Map.of("Accept", "text/html")).status()).isIn(200, 302);
     }
 
     @Test
@@ -101,7 +58,7 @@ class PlatformTest extends ApiTestBase {
     }
 
     @Test
-    void errorsAreJsonInDrfsShape() {
+    void errorsAreJsonWithADetail() {
         Response missing = client.get("/api/nothing-here/");
         assertThat(missing.status()).isEqualTo(404);
         assertThat(missing.string("detail")).isEqualTo("Not found.");
@@ -125,14 +82,14 @@ class PlatformTest extends ApiTestBase {
         // See AdminBootstrapTest for the startup path; this is the guard it relies on.
         accounts.create("admin", "first");
         assertThat(accounts.exists("admin")).isTrue();
-        assertThat(jdbc.sql("SELECT count(*) FROM auth_user WHERE username = 'admin'").query(Long.class).single())
+        assertThat(jdbc.sql("SELECT count(*) FROM app_user WHERE username = 'admin'").query(Long.class).single())
                 .isEqualTo(1);
     }
 
     @Test
     void nothingButTheSeededPagesExistsOnAFreshDatabase() {
-        assertThat(count("myapp_post")).isZero();
-        assertThat(jdbc.sql("SELECT key FROM myapp_pagecontent ORDER BY key").query(String.class).list())
+        assertThat(count("post")).isZero();
+        assertThat(jdbc.sql("SELECT key FROM page_content ORDER BY key").query(String.class).list())
                 .isEqualTo(List.of("about", "cv"));
     }
 }

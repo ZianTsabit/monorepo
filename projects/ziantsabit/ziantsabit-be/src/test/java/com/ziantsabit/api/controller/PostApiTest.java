@@ -15,7 +15,7 @@ import com.ziantsabit.api.support.Api;
 import com.ziantsabit.api.support.ApiTestBase;
 import com.ziantsabit.api.support.Response;
 
-/** Ported from the Django suite's PostModelTests and PostAPITests. */
+/** Posts: the save rules and the API. */
 class PostApiTest extends ApiTestBase {
 
     @Nested
@@ -53,7 +53,7 @@ class PostApiTest extends ApiTestBase {
         }
 
         @Test
-        void slugifyMatchesDjangos() {
+        void slugifyFoldsToAscii() {
             assertThat(com.ziantsabit.api.util.Slugs.slugify("  Héllo, Wörld!  -- _Ok_ "))
                     .isEqualTo("hello-world-_ok");
         }
@@ -88,7 +88,7 @@ class PostApiTest extends ApiTestBase {
         }
 
         @Test
-        void listIsPaginatedInDrfsEnvelope() {
+        void listIsPaginated() {
             Response response = client.get("/api/posts/");
             assertThat(response.map()).containsKeys("count", "next", "previous", "results");
             assertThat(response.get("count")).isEqualTo(2);
@@ -195,7 +195,7 @@ class PostApiTest extends ApiTestBase {
             Response response = client.post("/api/posts/", body("title", "Nope"));
             assertThat(response.status()).isEqualTo(403);
             assertThat(response.string("detail")).isEqualTo("Authentication credentials were not provided.");
-            assertThat(count("myapp_post")).isEqualTo(3);
+            assertThat(count("post")).isEqualTo(3);
         }
 
         @Test
@@ -247,7 +247,7 @@ class PostApiTest extends ApiTestBase {
         void createRejectsATakenSlug() {
             Response response = owner().post("/api/posts/", body("title", "X", "slug", "old-desk"));
             assertThat(response.status()).isEqualTo(400);
-            assertThat(response.get("slug")).isEqualTo(List.of("post with this slug already exists."));
+            assertThat(response.get("slug")).isEqualTo(List.of("A post with this slug already exists."));
         }
 
         @Test
@@ -262,37 +262,28 @@ class PostApiTest extends ApiTestBase {
             Response response = owner().post("/api/posts/", List.of(1, 2));
             assertThat(response.status()).isEqualTo(400);
             assertThat(response.get("non_field_errors"))
-                    .isEqualTo(List.of("Invalid data. Expected a dictionary, but got list."));
+                    .isEqualTo(List.of("Expected a JSON object."));
         }
 
         @Test
         void patchUpdatesAField() {
             Response response = owner().patch(detail(publishedBook), body("excerpt", "short"));
             assertThat(response.status()).isEqualTo(200);
-            assertThat(row("myapp_post", publishedBook.id()).get("excerpt")).isEqualTo("short");
+            assertThat(row("post", publishedBook.id()).get("excerpt")).isEqualTo("short");
         }
 
         @Test
         void patchPublishingADraftStampsPublishedAt() {
             Response response = owner().patch(detail(draft), body("status", "published"));
             assertThat(response.status()).isEqualTo(200);
-            assertThat(row("myapp_post", draft.id()).get("published_at")).isNotNull();
+            assertThat(row("post", draft.id()).get("published_at")).isNotNull();
         }
 
         @Test
-        void putReplacesThePost() {
-            Map<String, Object> request = body("title", "Renamed", "slug", publishedBook.slug(), "excerpt", "",
-                    "body", "", "status", "published", "published_at", null);
-            Response response = owner().put(detail(publishedBook), request);
-            assertThat(response.status()).isEqualTo(200);
-            assertThat(row("myapp_post", publishedBook.id()).get("title")).isEqualTo("Renamed");
-        }
-
-        @Test
-        void putWithoutATitleIsRefused() {
-            Response response = owner().put(detail(publishedBook), body("excerpt", "x"));
-            assertThat(response.status()).isEqualTo(400);
-            assertThat(response.map()).containsKey("title");
+        void thereIsNoPut() {
+            Response response = owner().put(detail(publishedBook), body("title", "Renamed"));
+            assertThat(response.status()).isEqualTo(405);
+            assertThat(row("post", publishedBook.id()).get("title")).isEqualTo(publishedBook.title());
         }
 
         @Test
@@ -322,13 +313,13 @@ class PostApiTest extends ApiTestBase {
         void deleteRemovesThePost() {
             Response response = owner().delete(detail(sale));
             assertThat(response.status()).isEqualTo(204);
-            assertThat(exists("myapp_post", sale.id())).isFalse();
+            assertThat(exists("post", sale.id())).isFalse();
         }
 
         @Test
         void anonymousCannotDelete() {
             assertThat(client.delete(detail(sale)).status()).isEqualTo(403);
-            assertThat(exists("myapp_post", sale.id())).isTrue();
+            assertThat(exists("post", sale.id())).isTrue();
         }
     }
 }

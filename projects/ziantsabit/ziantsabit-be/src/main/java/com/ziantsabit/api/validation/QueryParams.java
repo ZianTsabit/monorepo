@@ -12,7 +12,7 @@ import com.ziantsabit.api.exception.ApiException;
 /** Validation for the hand-rolled query parameters every list route reads. */
 public final class QueryParams {
 
-    // Django's parse_date fallback: one- or two-digit month and day allowed.
+    // A date as people type it: one- or two-digit month and day are accepted.
     private static final Pattern LOOSE_DATE = Pattern.compile("(\\d{4})-(\\d{1,2})-(\\d{1,2})");
 
     private QueryParams() {

@@ -17,12 +17,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.ziantsabit.api.dto.ApiDocs;
+import com.ziantsabit.api.dto.LoginRequest;
 import com.ziantsabit.api.dto.SessionState;
 import com.ziantsabit.api.exception.ApiException;
 import com.ziantsabit.api.security.UserAccounts;
 import com.ziantsabit.api.security.Viewer;
-import com.ziantsabit.api.validation.Form;
+import com.ziantsabit.api.validation.RequestBodies;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -30,6 +30,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Session login for the SPA's /admin page.
@@ -49,18 +50,20 @@ public class AuthController {
     private final SecurityContextRepository contexts;
     private final CsrfTokenRepository csrfTokens;
     private final UserAccounts accounts;
+    private final RequestBodies bodies;
 
     public AuthController(AuthenticationManager authentication, SecurityContextRepository contexts,
-            CsrfTokenRepository csrfTokens, UserAccounts accounts) {
+            CsrfTokenRepository csrfTokens, UserAccounts accounts, RequestBodies bodies) {
         this.authentication = authentication;
         this.contexts = contexts;
         this.csrfTokens = csrfTokens;
         this.accounts = accounts;
+        this.bodies = bodies;
     }
 
     @GetMapping("/session")
     @Operation(summary = "Current session, and the CSRF token to send as X-CSRFToken. The SPA calls this on "
-            + "load: it answers 'am I still logged in?' and primes the csrftoken cookie in one round trip.")
+            + "load: it answers 'am I still logged in?' and primes the XSRF-TOKEN cookie in one round trip.")
     public SessionState session(HttpServletRequest request) {
         // Loads the token from its cookie, or makes one and sets the cookie.
         CsrfToken token = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
@@ -74,13 +77,12 @@ public class AuthController {
      */
     @PostMapping("/login")
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            content = @Content(schema = @Schema(implementation = ApiDocs.LoginInput.class)))
-    public SessionState login(@RequestBody(required = false) Object body, HttpServletRequest request,
+            content = @Content(schema = @Schema(implementation = LoginRequest.class)))
+    public SessionState login(@RequestBody(required = false) JsonNode body, HttpServletRequest request,
             HttpServletResponse response) {
-        Form form = Form.of(body, false);
-        String username = form.text("username", true, false, 0).orElse(null);
-        String password = form.text("password", true, false, 0).orElse(null);
-        form.check();
+        LoginRequest login = bodies.read(body, LoginRequest.class);
+        String username = login.username().strip();
+        String password = login.password();
 
         Authentication user;
         try {

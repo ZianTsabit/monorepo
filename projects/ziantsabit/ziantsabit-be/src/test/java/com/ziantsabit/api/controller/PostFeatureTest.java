@@ -17,10 +17,7 @@ import com.ziantsabit.api.model.Post;
 import com.ziantsabit.api.support.ApiTestBase;
 import com.ziantsabit.api.support.Response;
 
-/**
- * Ported from the Django suite's CoverImageTests, ViewCountTests, ViewDayTests,
- * TagTests, UpdatedOrderingTests and DateFilterTests.
- */
+/** Posts' cover images, view counts and daily tallies, tags, ordering and date filters. */
 class PostFeatureTest extends ApiTestBase {
 
     static String detail(Post post) {
@@ -111,20 +108,20 @@ class PostFeatureTest extends ApiTestBase {
             for (int i = 0; i < 3; i++) {
                 client.post(view(popular), null);
             }
-            assertThat(row("myapp_post", popular.id()).get("view_count")).isEqualTo(3);
+            assertThat(row("post", popular.id()).get("view_count")).isEqualTo(3);
         }
 
         @Test
         void recordingAViewDoesNotTouchUpdatedAt() {
-            Object before = row("myapp_post", popular.id()).get("updated_at");
+            Object before = row("post", popular.id()).get("updated_at");
             client.post(view(popular), null);
-            assertThat(row("myapp_post", popular.id()).get("updated_at")).isEqualTo(before);
+            assertThat(row("post", popular.id()).get("updated_at")).isEqualTo(before);
         }
 
         @Test
         void anonymousCannotRecordAViewOnADraft() {
             assertThat(client.post(view(draft), null).status()).isEqualTo(404);
-            assertThat(row("myapp_post", draft.id()).get("view_count")).isEqualTo(0);
+            assertThat(row("post", draft.id()).get("view_count")).isEqualTo(0);
         }
 
         @Test
@@ -134,22 +131,22 @@ class PostFeatureTest extends ApiTestBase {
 
         @Test
         void viewCountIsSerialised() {
-            update("myapp_post", popular.id(), Map.of("view_count", 7));
+            update("post", popular.id(), Map.of("view_count", 7));
             assertThat(client.get(detail(popular)).get("view_count")).isEqualTo(7);
         }
 
         @Test
         void viewCountIsReadOnlyOnAWrite() {
-            update("myapp_post", popular.id(), Map.of("view_count", 7));
+            update("post", popular.id(), Map.of("view_count", 7));
             Response response = owner().patch(detail(popular), body("view_count", 0));
             assertThat(response.status()).isEqualTo(200);
-            assertThat(row("myapp_post", popular.id()).get("view_count")).isEqualTo(7);
+            assertThat(row("post", popular.id()).get("view_count")).isEqualTo(7);
         }
 
         @Test
         void orderingByViews() {
-            update("myapp_post", quiet.id(), Map.of("view_count", 1));
-            update("myapp_post", popular.id(), Map.of("view_count", 9));
+            update("post", quiet.id(), Map.of("view_count", 1));
+            update("post", popular.id(), Map.of("view_count", 9));
             Response response = client.get("/api/posts/", "ordering", "views");
             assertThat(response.status()).isEqualTo(200);
             assertThat(response.slugs()).containsExactly(popular.slug(), quiet.slug());
@@ -157,14 +154,14 @@ class PostFeatureTest extends ApiTestBase {
 
         @Test
         void defaultOrderingIsStillNewestFirst() {
-            update("myapp_post", popular.id(), Map.of("view_count", 9));
+            update("post", popular.id(), Map.of("view_count", 9));
             assertThat(client.get("/api/posts/").slugs()).containsExactly(quiet.slug(), popular.slug());
         }
 
         @Test
         void orderingCombinesWithATagFilter() {
             Post book = published("A Book", p -> p.tags = List.of("Books"));
-            update("myapp_post", popular.id(), Map.of("view_count", 9));
+            update("post", popular.id(), Map.of("view_count", 9));
             assertThat(client.get("/api/posts/", "ordering", "views", "tag", "books").slugs())
                     .containsExactly(book.slug());
         }
@@ -193,7 +190,7 @@ class PostFeatureTest extends ApiTestBase {
         }
 
         List<Map<String, Object>> days(Post of) {
-            return jdbc.sql("SELECT date, count FROM myapp_postviewday WHERE post_id = :id").param("id", of.id())
+            return jdbc.sql("SELECT date, count FROM post_view_day WHERE post_id = :id").param("id", of.id())
                     .query().listOfRows();
         }
 
@@ -219,7 +216,7 @@ class PostFeatureTest extends ApiTestBase {
         void eachPostKeepsItsOwnRow() {
             client.post(view(post), null);
             client.post(view(other), null);
-            assertThat(count("myapp_postviewday")).isEqualTo(2);
+            assertThat(count("post_view_day")).isEqualTo(2);
         }
 
         @Test
@@ -227,7 +224,7 @@ class PostFeatureTest extends ApiTestBase {
             for (int i = 0; i < 3; i++) {
                 client.post(view(post), null);
             }
-            assertThat(row("myapp_post", post.id()).get("view_count")).isEqualTo(days(post).get(0).get("count"));
+            assertThat(row("post", post.id()).get("view_count")).isEqualTo(days(post).get(0).get("count"));
         }
 
         @Test
@@ -241,7 +238,7 @@ class PostFeatureTest extends ApiTestBase {
             createUser();
             client.post(view(post), null);
             assertThat(owner().delete(detail(post)).status()).isEqualTo(204);
-            assertThat(count("myapp_postviewday")).isZero();
+            assertThat(count("post_view_day")).isZero();
         }
     }
 
@@ -260,14 +257,14 @@ class PostFeatureTest extends ApiTestBase {
 
         @Test
         void tagsAreTrimmedAndBlanksDropped() {
-            Post post = post("Tagged", p -> p.tags = List.of("  django ", "", "   ", "postgres"));
-            assertThat(post.tags()).containsExactly("django", "postgres");
+            Post post = post("Tagged", p -> p.tags = List.of("  spring ", "", "   ", "postgres"));
+            assertThat(post.tags()).containsExactly("spring", "postgres");
         }
 
         @Test
         void repeatsAreDroppedCaseInsensitivelyKeepingTheFirstSpelling() {
-            assertThat(post("Repeats", p -> p.tags = List.of("Django", "django", "DJANGO")).tags())
-                    .containsExactly("Django");
+            assertThat(post("Repeats", p -> p.tags = List.of("Spring", "spring", "SPRING")).tags())
+                    .containsExactly("Spring");
         }
 
         @Test
@@ -278,18 +275,18 @@ class PostFeatureTest extends ApiTestBase {
 
         @Test
         void tagsAreSerialised() {
-            Post post = published("Serialised", p -> p.tags = List.of("django", "rest"));
+            Post post = published("Serialised", p -> p.tags = List.of("spring", "rest"));
             Response response = client.get(detail(post));
             assertThat(response.status()).isEqualTo(200);
-            assertThat(response.get("tags")).isEqualTo(List.of("django", "rest"));
+            assertThat(response.get("tags")).isEqualTo(List.of("spring", "rest"));
         }
 
         @Test
         void createWithTags() {
             Response response = owner().post("/api/posts/",
-                    body("title", "Created", "tags", List.of("Django", " django ", "postgres")));
+                    body("title", "Created", "tags", List.of("Spring", " spring ", "postgres")));
             assertThat(response.status()).isEqualTo(201);
-            assertThat(response.get("tags")).isEqualTo(List.of("Django", "postgres"));
+            assertThat(response.get("tags")).isEqualTo(List.of("Spring", "postgres"));
         }
 
         @Test
@@ -317,15 +314,14 @@ class PostFeatureTest extends ApiTestBase {
         void anOverlongTagIsRejected() {
             Response response = owner().post("/api/posts/", body("title", "Too long", "tags", List.of("x".repeat(51))));
             assertThat(response.status()).isEqualTo(400);
-            assertThat(response.get("tags"))
-                    .isEqualTo(Map.of("0", List.of("Ensure this field has no more than 50 characters.")));
+            assertThat(response.get("tags")).isEqualTo(List.of("Must be at most 50 characters."));
         }
 
         @Test
         void aTagListThatIsNotAListIsRejected() {
-            Response response = owner().post("/api/posts/", body("title", "X", "tags", "django"));
+            Response response = owner().post("/api/posts/", body("title", "X", "tags", "spring"));
             assertThat(response.status()).isEqualTo(400);
-            assertThat(response.get("tags")).isEqualTo(List.of("Expected a list of items but got type \"str\"."));
+            assertThat(response.get("tags")).isEqualTo(List.of("Must be a list."));
         }
 
         @Test
@@ -350,9 +346,9 @@ class PostFeatureTest extends ApiTestBase {
             // disagree about it, which is the whole point of the option.
             revised = published("Revised");
             newer = published("Newer");
-            update("myapp_post", revised.id(), Map.of("published_at", now.minus(30, ChronoUnit.DAYS),
+            update("post", revised.id(), Map.of("published_at", now.minus(30, ChronoUnit.DAYS),
                     "updated_at", now.minus(1, ChronoUnit.MINUTES)));
-            update("myapp_post", newer.id(), Map.of("published_at", now.minus(1, ChronoUnit.DAYS),
+            update("post", newer.id(), Map.of("published_at", now.minus(1, ChronoUnit.DAYS),
                     "updated_at", now.minus(1, ChronoUnit.DAYS)));
         }
 
@@ -407,7 +403,7 @@ class PostFeatureTest extends ApiTestBase {
 
         Post on(String title, String day) {
             Post post = published(title);
-            update("myapp_post", post.id(), Map.of("published_at", Instant.parse(day + "T12:00:00Z")));
+            update("post", post.id(), Map.of("published_at", Instant.parse(day + "T12:00:00Z")));
             return post;
         }
 

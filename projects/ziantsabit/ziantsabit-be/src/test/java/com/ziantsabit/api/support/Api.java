@@ -22,8 +22,7 @@ import tools.jackson.databind.json.JsonMapper;
  * A real HTTP client against the running server -- not MockMvc -- so the
  * filters, the session cookie, CORS and CSRF all behave as a browser meets
  * them. One instance is one caller: anonymous, the owner by basic auth (which
- * skips CSRF, as DRF's force_authenticate did in the Django suite), or a
- * cookie-keeping browser for the session tests.
+ * needs no CSRF token), or a cookie-keeping browser for the session tests.
  */
 public final class Api {
 

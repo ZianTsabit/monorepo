@@ -20,7 +20,7 @@ import com.ziantsabit.api.model.PostFields;
 import com.ziantsabit.api.query.PostQuery;
 import com.ziantsabit.api.util.Sql;
 
-/** SQL for {@code myapp_post} and the per-day view tally beside it. */
+/** SQL for {@code post} and the per-day view tally beside it. */
 @Repository
 public class PostRepository {
 
@@ -30,9 +30,9 @@ public class PostRepository {
     // posts with no visible comments off the feed entirely.
     private static final String SELECT = """
             SELECT p.*,
-                   (SELECT count(*) FROM myapp_comment c
+                   (SELECT count(*) FROM comment c
                      WHERE c.post_id = p.id AND c.status = 'published') AS comment_count
-              FROM myapp_post p""";
+              FROM post p""";
 
     private final JdbcClient jdbc;
 
@@ -42,7 +42,7 @@ public class PostRepository {
 
     public long count(PostQuery query) {
         Sql.Where where = query.where();
-        return jdbc.sql("SELECT count(*) FROM myapp_post p" + where.sql())
+        return jdbc.sql("SELECT count(*) FROM post p" + where.sql())
                 .params(where.params()).query(Long.class).single();
     }
 
@@ -67,13 +67,13 @@ public class PostRepository {
     }
 
     public boolean slugTaken(String slug, Long excludeId) {
-        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM myapp_post WHERE slug = :slug AND id IS DISTINCT FROM :id)")
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM post WHERE slug = :slug AND id IS DISTINCT FROM :id)")
                 .param("slug", slug).param("id", excludeId).query(Boolean.class).single();
     }
 
     public long insert(PostFields post, Instant now) {
         return jdbc.sql("""
-                INSERT INTO myapp_post (title, slug, excerpt, body, cover_image_url, cover_image_alt, tags,
+                INSERT INTO post (title, slug, excerpt, body, cover_image_url, cover_image_alt, tags,
                                         status, published_at, comments_enabled, reactions_enabled, theme,
                                         view_count, created_at, updated_at)
                 VALUES (:title, :slug, :excerpt, :body, :coverImageUrl, :coverImageAlt, :tags,
@@ -89,7 +89,7 @@ public class PostRepository {
         // would write back whatever number the form loaded and undo every read
         // since.
         jdbc.sql("""
-                UPDATE myapp_post
+                UPDATE post
                    SET title = :title, slug = :slug, excerpt = :excerpt, body = :body,
                        cover_image_url = :coverImageUrl, cover_image_alt = :coverImageAlt, tags = :tags,
                        status = :status, published_at = :publishedAt, comments_enabled = :commentsEnabled,
@@ -99,15 +99,9 @@ public class PostRepository {
                 .update();
     }
 
-    /**
-     * Delete a post and everything hanging off it. The children go first and
-     * explicitly: the foreign keys Django created have no ON DELETE CASCADE.
-     */
+    /** Delete a post; its comments, reactions and view tallies go with it (ON DELETE CASCADE). */
     public void delete(long id) {
-        for (String child : List.of("myapp_comment", "myapp_reaction", "myapp_postviewday")) {
-            jdbc.sql("DELETE FROM " + child + " WHERE post_id = :id").param("id", id).update();
-        }
-        jdbc.sql("DELETE FROM myapp_post WHERE id = :id").param("id", id).update();
+        jdbc.sql("DELETE FROM post WHERE id = :id").param("id", id).update();
     }
 
     /**
@@ -116,14 +110,14 @@ public class PostRepository {
      * not an edit.
      */
     public long recordView(long id, LocalDate day) {
-        long views = jdbc.sql("UPDATE myapp_post SET view_count = view_count + 1 WHERE id = :id RETURNING view_count")
+        long views = jdbc.sql("UPDATE post SET view_count = view_count + 1 WHERE id = :id RETURNING view_count")
                 .param("id", id).query(Long.class).single();
         // The same read filed under its day, for the statistics page's chart.
         // The unique (post, date) constraint makes two first-reads-of-the-day
         // racing each other land on one row.
         jdbc.sql("""
-                INSERT INTO myapp_postviewday (post_id, date, count) VALUES (:id, :day, 1)
-                ON CONFLICT (post_id, date) DO UPDATE SET count = myapp_postviewday.count + 1""")
+                INSERT INTO post_view_day (post_id, date, count) VALUES (:id, :day, 1)
+                ON CONFLICT (post_id, date) DO UPDATE SET count = post_view_day.count + 1""")
                 .param("id", id).param("day", day).update();
         return views;
     }
@@ -131,7 +125,7 @@ public class PostRepository {
     /** Every spelling of every tag on the posts {@code query} can see, with counts. */
     public List<LabelCount> tagSpellings(PostQuery query) {
         Sql.Where where = query.where();
-        return jdbc.sql("SELECT t.label AS name, count(*) AS count FROM myapp_post p "
+        return jdbc.sql("SELECT t.label AS name, count(*) AS count FROM post p "
                         + "CROSS JOIN LATERAL unnest(p.tags) AS t(label)" + where.sql() + " GROUP BY t.label")
                 .params(where.params())
                 .query((row, n) -> new LabelCount(row.getString("name"), row.getLong("count"))).list();
@@ -148,7 +142,7 @@ public class PostRepository {
                        count(*) FILTER (WHERE status = 'published') AS published,
                        COALESCE(sum(view_count), 0) AS total_views,
                        COALESCE(avg(view_count) FILTER (WHERE status = 'published'), 0) AS average_views
-                  FROM myapp_post""")
+                  FROM post""")
                 .query((row, n) -> new Totals(row.getLong("total"), row.getLong("published"),
                         row.getLong("total_views"), row.getDouble("average_views")))
                 .single();
@@ -157,14 +151,14 @@ public class PostRepository {
     public Optional<Instant> firstPublishedAt() {
         // min() over no rows is one row holding NULL, which single() refuses.
         return jdbc.sql("""
-                SELECT min(published_at) FROM myapp_post
+                SELECT min(published_at) FROM post
                  WHERE status = 'published' AND published_at IS NOT NULL""")
                 .query((row, n) -> Optional.ofNullable(Sql.instant(row, "min"))).single();
     }
 
     public List<PostStats.MostRead> mostRead(int limit) {
         return jdbc.sql("""
-                SELECT slug, title, status, view_count FROM myapp_post
+                SELECT slug, title, status, view_count FROM post
                  WHERE view_count > 0
                  ORDER BY view_count DESC, published_at DESC, created_at DESC
                  LIMIT :limit""")
@@ -178,7 +172,7 @@ public class PostRepository {
         return jdbc.sql("""
                 SELECT to_char(date_trunc('month', published_at AT TIME ZONE 'UTC'), 'YYYY-MM') AS month,
                        count(*) AS count
-                  FROM myapp_post
+                  FROM post
                  WHERE status = 'published' AND published_at IS NOT NULL
                  GROUP BY 1 ORDER BY 1""")
                 .query((row, n) -> new PostStats.MonthCount(row.getString("month"), row.getLong("count")))
@@ -187,7 +181,7 @@ public class PostRepository {
 
     public Map<LocalDate, Long> viewsByDay(LocalDate from, LocalDate to) {
         return jdbc.sql("""
-                SELECT date, sum(count) AS count FROM myapp_postviewday
+                SELECT date, sum(count) AS count FROM post_view_day
                  WHERE date BETWEEN :from AND :to GROUP BY date""")
                 .param("from", from).param("to", to)
                 .query((row, n) -> Map.entry(row.getObject("date", LocalDate.class), row.getLong("count")))

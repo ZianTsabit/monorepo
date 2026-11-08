@@ -16,7 +16,7 @@ import com.ziantsabit.api.util.Sql;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
-/** SQL for {@code myapp_pagecontent}, whose {@code data} column is jsonb. */
+/** SQL for {@code page_content}, whose {@code data} column is jsonb. */
 @Repository
 public class PageRepository {
 
@@ -33,18 +33,18 @@ public class PageRepository {
 
     /** Both pages, in key order. */
     public List<PageContent> findAll() {
-        return jdbc.sql("SELECT * FROM myapp_pagecontent ORDER BY key").query(this::page).list();
+        return jdbc.sql("SELECT * FROM page_content ORDER BY key").query(this::page).list();
     }
 
     public Optional<PageContent> findByKey(String key) {
-        return jdbc.sql("SELECT * FROM myapp_pagecontent WHERE key = :key").param("key", key)
+        return jdbc.sql("SELECT * FROM page_content WHERE key = :key").param("key", key)
                 .query(this::page).optional();
     }
 
     /** Create the row unless one exists already (two first reads may race). */
     public void insertIfMissing(String key, Map<String, Object> data, Instant now) {
         jdbc.sql("""
-                INSERT INTO myapp_pagecontent (key, data, updated_at)
+                INSERT INTO page_content (key, data, updated_at)
                 VALUES (:key, CAST(:data AS jsonb), :now)
                 ON CONFLICT (key) DO NOTHING""")
                 .param("key", key)
@@ -54,7 +54,7 @@ public class PageRepository {
     }
 
     public void update(String key, Map<String, Object> data, Instant now) {
-        jdbc.sql("UPDATE myapp_pagecontent SET data = CAST(:data AS jsonb), updated_at = :now WHERE key = :key")
+        jdbc.sql("UPDATE page_content SET data = CAST(:data AS jsonb), updated_at = :now WHERE key = :key")
                 .param("data", json.writeValueAsString(data))
                 .param("now", Sql.timestamp(now))
                 .param("key", key)

@@ -13,7 +13,7 @@ import com.ziantsabit.api.support.Response;
 
 import tools.jackson.core.type.TypeReference;
 
-/** /api/pages/. Ported from the Django suite's PageContentTests. */
+/** /api/pages/: the CV and About documents. */
 class PageContentTest extends ApiTestBase {
 
     static final String CV = "/api/pages/cv/";
@@ -25,7 +25,7 @@ class PageContentTest extends ApiTestBase {
     }
 
     Map<String, Object> stored(String key) {
-        String data = jdbc.sql("SELECT data::text FROM myapp_pagecontent WHERE key = :key").param("key", key)
+        String data = jdbc.sql("SELECT data::text FROM page_content WHERE key = :key").param("key", key)
                 .query(String.class).single();
         return json.readValue(data, new TypeReference<Map<String, Object>>() {
         });
@@ -140,16 +140,23 @@ class PageContentTest extends ApiTestBase {
     @Test
     void keyIsReadOnly() {
         owner().patch(CV, body("key", "about", "data", Map.of()));
-        assertThat(count("myapp_pagecontent")).isEqualTo(2);
-        assertThat(jdbc.sql("SELECT count(*) FROM myapp_pagecontent WHERE key = 'cv'").query(Long.class).single())
+        assertThat(count("page_content")).isEqualTo(2);
+        assertThat(jdbc.sql("SELECT count(*) FROM page_content WHERE key = 'cv'").query(Long.class).single())
                 .isEqualTo(1);
     }
 
     @Test
-    void putRequiresTheDocument() {
-        Response response = owner().put(CV, body());
+    void aNullDocumentIsRefused() {
+        Map<String, Object> request = new java.util.HashMap<>();
+        request.put("data", null);
+        Response response = owner().patch(CV, request);
         assertThat(response.status()).isEqualTo(400);
         assertThat(response.get("data")).isEqualTo(List.of("This field is required."));
+    }
+
+    @Test
+    void thereIsNoPut() {
+        assertThat(owner().put(CV, body("data", Map.of())).status()).isEqualTo(405);
     }
 
     @Test
@@ -167,11 +174,11 @@ class PageContentTest extends ApiTestBase {
 
     @Test
     void aMissingRowIsCreatedEmptyRatherThan404ing() {
-        jdbc.sql("DELETE FROM myapp_pagecontent WHERE key = 'about'").update();
+        jdbc.sql("DELETE FROM page_content WHERE key = 'about'").update();
         Response response = client.get(ABOUT);
         assertThat(response.status()).isEqualTo(200);
         List<Object> sections = at(response.map(), "data", "sections");
         assertThat(sections).isEmpty();
-        assertThat(count("myapp_pagecontent")).isEqualTo(2);
+        assertThat(count("page_content")).isEqualTo(2);
     }
 }

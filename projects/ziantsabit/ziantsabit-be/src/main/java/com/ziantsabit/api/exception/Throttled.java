@@ -4,7 +4,7 @@ import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 
-/** A 429, carrying the Retry-After the handler sends alongside DRF's message. */
+/** A 429, carrying the Retry-After the handler sends with it. */
 public class Throttled extends ApiException {
 
     private final long waitSeconds;

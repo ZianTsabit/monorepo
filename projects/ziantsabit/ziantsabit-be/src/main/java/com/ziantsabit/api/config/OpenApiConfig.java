@@ -10,8 +10,8 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 
 /**
- * Swagger UI at {@code /api/docs/} and the document at {@code /api/schema/};
- * the ReDoc page is RedocController. The three routes drf-spectacular served.
+ * Swagger UI at {@code /api/docs/} and the OpenAPI document at
+ * {@code /api/schema/}, both from springdoc.
  */
 @Configuration
 public class OpenApiConfig {

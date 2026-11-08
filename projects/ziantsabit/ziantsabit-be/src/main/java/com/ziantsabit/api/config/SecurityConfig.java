@@ -19,6 +19,8 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
@@ -38,7 +40,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 
 import com.ziantsabit.api.security.CsrfOriginCheck;
-import com.ziantsabit.api.security.DjangoPasswordEncoder;
+import com.ziantsabit.api.security.LegacyPbkdf2PasswordEncoder;
 import com.ziantsabit.api.security.UserAccounts;
 import com.ziantsabit.api.security.Viewer;
 
@@ -110,7 +112,7 @@ public class SecurityConfig {
     }
 
     /**
-     * Which requests must carry a CSRF token -- DRF's rule, kept exactly.
+     * Which requests must carry a CSRF token.
      *
      * <p>A write is checked when it is <b>authenticated by the session
      * cookie</b>, since that cookie is what a cross-site page could ride on.
@@ -133,15 +135,39 @@ public class SecurityConfig {
         return request.getRequestURI().equals("/api/auth/login") || Viewer.isAuthenticated();
     }
 
+    /**
+     * Spring Security's delegating encoder: {@code {bcrypt}} for everything it
+     * writes, plus the read-only legacy matcher for hashes older than V4. A
+     * hash with no recognised prefix (an unusable {@code !...} one) matches
+     * nothing rather than throwing.
+     */
     @Bean
-    PasswordEncoder passwordEncoder(AppProperties properties) {
-        return new DjangoPasswordEncoder(properties.passwordIterations());
+    PasswordEncoder passwordEncoder() {
+        DelegatingPasswordEncoder encoder = new DelegatingPasswordEncoder("bcrypt", Map.of(
+                "bcrypt", new BCryptPasswordEncoder(),
+                LegacyPbkdf2PasswordEncoder.ID, new LegacyPbkdf2PasswordEncoder()));
+        encoder.setDefaultPasswordEncoderForMatches(NO_MATCH);
+        return encoder;
     }
 
+    private static final PasswordEncoder NO_MATCH = new PasswordEncoder() {
+        @Override
+        public String encode(CharSequence rawPassword) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean matches(CharSequence rawPassword, String encodedPassword) {
+            return false;
+        }
+    };
+
+    /** Re-encodes an outdated hash on a successful login, through {@link UserAccounts#updatePassword}. */
     @Bean
     AuthenticationManager authenticationManager(UserAccounts accounts, PasswordEncoder passwords) {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(accounts);
         provider.setPasswordEncoder(passwords);
+        provider.setUserDetailsPasswordService(accounts);
         return new ProviderManager(provider);
     }
 
@@ -153,16 +179,15 @@ public class SecurityConfig {
     }
 
     /**
-     * The double-submit token, in a cookie named as Django named it. The SPA
-     * reads the value from {@code /api/auth/session/}'s body and sends it back
-     * as {@code X-CSRFToken}; the browser sends the cookie; they must match.
+     * A double-submit token in Spring's default cookie, {@code XSRF-TOKEN}. The
+     * SPA cannot read that cookie (it belongs to the API's origin), so it takes
+     * the value from {@code /api/auth/session/}'s body and sends it back as
+     * {@code X-CSRFToken}; the browser sends the cookie; they must match.
      */
     @Bean
     CsrfTokenRepository csrfTokenRepository(AppProperties properties) {
         CookieCsrfTokenRepository tokens = new CookieCsrfTokenRepository();
-        tokens.setCookieName("csrftoken");
         tokens.setHeaderName("X-CSRFToken");
-        tokens.setParameterName("csrfmiddlewaretoken");
         tokens.setCookieCustomizer(cookie -> cookie
                 .path("/")
                 .maxAge(Duration.ofDays(364))
@@ -180,15 +205,15 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(properties.corsAllowedOriginList());
         config.setAllowCredentials(true);
-        config.setAllowedMethods(List.of("DELETE", "GET", "OPTIONS", "PATCH", "POST", "PUT"));
+        config.setAllowedMethods(List.of("DELETE", "GET", "OPTIONS", "PATCH", "POST"));
         config.setAllowedHeaders(List.of(
                 "accept", "authorization", "content-type", "user-agent", "x-csrftoken", "x-requested-with"));
         config.setMaxAge(Duration.ofDays(1));
         // An origin that is not listed gets no CORS headers -- and nothing else:
         // the request is served, and the browser is what refuses to hand the
         // response over. Spring's own handling would answer it with a bare 403
-        // instead, which is not what django-cors-headers did, and which would
-        // pre-empt the CSRF origin check's clearer refusal.
+        // instead, which would pre-empt the CSRF origin check's clearer refusal
+        // and turn a harmless same-site GET from an unlisted origin into an error.
         return request -> config.checkOrigin(request.getHeader("Origin")) == null ? null : config;
     }
 

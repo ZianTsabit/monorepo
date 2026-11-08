@@ -9,7 +9,7 @@ import org.springframework.http.HttpStatus;
 /**
  * A refusal with a status and the JSON body to send with it.
  *
- * <p>The bodies keep the two shapes DRF used, because the SPA's error handling
+ * <p>The bodies come in two shapes, because the SPA's error handling
  * ({@code describe()} in {@code services/api.ts}) is written against them:
  * {@code {"detail": "..."}} for anything not tied to an input, and
  * {@code {"field": ["...", ...]}} for validation, which the admin forms hang off

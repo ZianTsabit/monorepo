@@ -99,7 +99,7 @@ public class UploadService {
                 now.getYear(), now.getMonthValue(), stem, HexFormat.of().formatHex(suffix), extension);
     }
 
-    /** The name without its directory or last extension, as Python's Path.stem. */
+    /** The name without its directory or last extension: {@code a/b.tar.gz} is {@code b.tar}. */
     private static String stem(String filename) {
         String name = filename.substring(filename.lastIndexOf('/') + 1);
         int dot = name.lastIndexOf('.');

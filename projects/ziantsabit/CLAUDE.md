@@ -7,7 +7,7 @@ Guidance for this project of the monorepo; the monorepo-wide conventions are in 
 Personal portfolio website (ziantsabit.com). Two independent sub-projects, each with its own Dockerfile and docker-compose.yml — there is no root-level build, package manager, or orchestration that ties them together.
 
 - `ziantsabit-fe/` — React 19 + TypeScript + Vite SPA (the live site)
-- `ziantsabit-be/` — Spring Boot 4 / Java 25 content API (a port of the earlier Django backend, on the same database)
+- `ziantsabit-be/` — Spring Boot 4 / Java 25 content API
 
 ## Commands
 
@@ -29,7 +29,7 @@ Backend (run from `ziantsabit-be/`):
 ./run.sh prod --docker -d          # container with config/prod.env (+ docker-compose.prod.yml for stg/prod)
 ./gradlew test                     # whole suite (embedded Postgres, no Docker needed)
 ./gradlew test --tests BookApiTest # one class; 'BookApiTest$Pagination' for one @Nested group
-./gradlew bootJar                  # build/libs/ziantsabit-be-1.0.0.jar
+./gradlew bootJar                  # build/libs/ziantsabit-be-2.0.0.jar
 ```
 
 No test runner is configured for the frontend.
@@ -148,7 +148,7 @@ On the k3s cluster the same image runs as `deployments/k8s/ziantsabit/base/ziant
 
 ## Backend
 
-Spring Boot 4.1 on Java 25: Spring MVC, Spring Security, Spring Session JDBC, Flyway, springdoc, plain `JdbcClient` SQL (no JPA), and the AWS SDK for the image bucket. **It replaced a Django + DRF backend in October 2026 and keeps that backend's database, URLs and JSON byte-for-byte**, because the SPA and the production data were both built against it. The Django code is in git history (and in the original repo's `prod` branch) if a question about intended behaviour comes up — its test suite was ported one-for-one into this one.
+Spring Boot 4.1 on Java 25: Spring MVC, Spring Security, Spring Session JDBC, Bean Validation, Flyway, springdoc, plain `JdbcClient` SQL (no JPA), and the AWS SDK for the image bucket. Version 2.0.0 removed the last of the compatibility layer it was first ported with (October 2026) — see "Upgrading from 1.x" in `ziantsabit-be/README.md`. **The HTTP contract the SPA uses is fixed**: URLs with or without a trailing slash, snake_case JSON, `{count,next,previous,results}` pages, `{"detail"}` / `{"field": [...]}` / `non_field_errors` errors, the `X-CSRFToken` header. Change any of it only together with the SPA.
 
 ### Layout
 
@@ -156,54 +156,61 @@ Spring Boot 4.1 on Java 25: Spring MVC, Spring Security, Spring Session JDBC, Fl
 
 | Package | Holds |
 | --- | --- |
-| `controller/` | HTTP only: routes, Swagger annotations, throttle checks, status codes. `PostController`, `BookController`, `CommentController`, `PageController`, `UploadController`, `AuthController`, `ApiRootController`, `RedocController`. |
-| `service/` | The rules: validating a write, slug and publish-stamp on save, visibility 404s, toggling a reaction, stats, uploads. `PostService`, `PostStatsService`, `ReactionService`, `BookService`, `CommentService`, `PageService`, `UploadService`, `AdminBootstrap`. |
-| `repository/` | SQL, one class per table: `PostRepository` (+ view-day tally), `ReactionRepository`, `BookRepository`, `CommentRepository`, `PageRepository`, `UserRepository` (`auth_user`). |
+| `controller/` | HTTP only: routes, Swagger annotations, throttle checks, status codes. `PostController`, `BookController`, `CommentController`, `PageController`, `UploadController`, `AuthController`. |
+| `service/` | The rules: turning a request into fields to store, slug and publish-stamp on save, visibility 404s, toggling a reaction, stats, uploads. `PostService`, `PostStatsService`, `ReactionService`, `BookService`, `CommentService`, `PageService`, `UploadService`, `AdminBootstrap`. |
+| `repository/` | SQL, one class per table: `PostRepository` (+ view-day tally), `ReactionRepository`, `BookRepository`, `CommentRepository`, `PageRepository`, `UserRepository`. |
 | `query/` | `PostQuery`, `BookQuery`, `CommentQuery` — which rows a request may see and in what order, built from its query params and passed from controller to repository. |
-| `model/` | The stored things: `Post`, `Book`, `Comment`, `PageContent`, `UserAccount`, `Reaction` (the emoji vocabulary), and the writable halves `PostFields`/`BookFields`. `Post`, `Book` and `Comment` double as their JSON. |
-| `dto/` | Response shapes that are not a model (`PageResponse`, `PostStats`, `ReactionSummary`, `SessionState`, `ViewCount`, `LabelCount`, `UploadedImage`) and `ApiDocs`, the request-body records that exist only for Swagger. |
-| `validation/` | `Form` (field validation with DRF's exact messages), `QueryParams`, `Urls`, `Isbn`, `ImageFormat`, `PageDocuments` (the CV/About normaliser). |
-| `security/` | `UserAccounts` (Spring's `UserDetailsService`), `DjangoPasswordEncoder`, `CsrfOriginCheck`, `Throttle`, `Viewer` (who is asking). |
+| `model/` | The stored things: `Post`, `Book`, `Comment`, `PageContent`, `UserAccount`, `Reaction` (the emoji vocabulary), and `PostFields`/`BookFields` (what a save writes). `Post`, `Book` and `Comment` double as their JSON. |
+| `dto/` | Request records with their Bean Validation constraints (`PostRequest`, `BookRequest`, `CommentRequest`, `ReactionRequest`, `PageRequest`, `LoginRequest`) and response shapes that are not a model (`PageResponse`, `PostStats`, `ReactionSummary`, `SessionState`, …). |
+| `validation/` | `RequestBodies` (read / merge / validate a body), the constraints `@Required`, `@OneOf`, `@HttpUrl`, their `Messages`, and `QueryParams`, `Isbn`, `ImageFormat`, `PageDocuments` (the CV/About normaliser). |
+| `security/` | `UserAccounts` (`UserDetailsService` + `UserDetailsPasswordService`), `LegacyPbkdf2PasswordEncoder`, `CsrfOriginCheck`, `Throttle`, `Viewer` (who is asking). |
 | `exception/` | `ApiException`, `Throttled`, `ApiExceptionHandler` — every error body. |
 | `storage/` | `ObjectStorage` and its S3/RustFS implementation; tests swap in an in-memory one. |
 | `util/` | `Slugs`, `Labels`, `Sql`. |
 | `config/` | `SecurityConfig`, `WebConfig` (trailing slashes, allowed hosts, throttle beans, clock), `OpenApiConfig`, `AppProperties`. |
 
-Tests mirror it: the HTTP-level suites are in `src/test/java/.../controller/`, `AdminBootstrapTest` in `service/`, shared harness in `support/`.
+Tests mirror it: the HTTP-level suites are in `src/test/java/.../controller/`, `PasswordTest` in `security/`, `AdminBootstrapTest` in `service/`, shared harness in `support/`.
 
-### The database is still Django's
+### Database
 
-Table, column and index names are Django's (`myapp_post`, `auth_user`, `myapp_post_tags_aa0585_gin`, …). That is deliberate: the production database was built by Django's migrations 0001–0015, and keeping its names means no data migration on the switch and a rollback to the Django image needs nothing either.
+Tables `post`, `post_view_day`, `book`, `comment`, `reaction`, `page_content`, `app_user`, plus Spring Session's `spring_session*`. Flyway (`src/main/resources/db/migration/`) owns the schema. V1–V3 are history: they built the schema under its pre-2.0 names, and **V4 renamed everything** to the above, rebuilt constraints and indexes under descriptive names, and made the child tables' foreign keys `ON DELETE CASCADE`. **A schema change is a new `V5__…sql`, never an edit to an existing one** — they have all run everywhere, and Flyway checksums them.
 
-Flyway (`src/main/resources/db/migration/`) bridges the two. `V1__schema.sql` restates Django's final schema with **every statement `IF NOT EXISTS`**, and `spring.flyway.baseline-on-migrate` with **baseline version 0**: on the production database Flyway finds no history table, baselines at 0, runs V1 — which finds everything already there and changes nothing — and carries on. On a fresh database V1 builds it. `V2` seeds the CV/About content (`ON CONFLICT DO NOTHING`, so never over the owner's edits), `V3` adds Spring Session's tables. **A schema change is a new `V4__…sql`, never an edit to V1** — V1 has already run everywhere.
+- **V4 finds old constraint and index names through the catalogue** (`pg_constraint`, `pg_index`) rather than naming them, so an extra or differently named one on a database that predates Flyway cannot survive it. `LegacySchemaMigrationTest` replays production's real path — the pre-Flyway schema (a schema-only `pg_dump` of production, `src/test/resources/legacy-schema.sql`), baselined at 0, then V1–V4 — on embedded Postgres 18.4, production's version. Postgres 18 lists NOT NULL in `pg_constraint` too (`contype = 'n'`); V4 leaves those alone.
+- **Deleting a post is one statement**; the cascade takes its comments, reactions and view days. A new child table of `post` should cascade too.
+- Timestamps and counters have column defaults (`now()`, `0`), so an `INSERT` need not name them.
+- `V2`'s seed is `ON CONFLICT DO NOTHING`, so it never overwrites the owner's edits.
 
-Things that follow from Django's schema:
+### Accounts and passwords
 
-- **Foreign keys have no `ON DELETE CASCADE`** (Django cascades in Python), so `PostRepository.delete` removes comments, reactions and view-days first. Any new child table needs the same.
-- **No column has a database default** on the production database (Django drops them after `AddField`), so every `INSERT` names every column.
-- **Passwords are Django's `pbkdf2_sha256$iterations$salt$hash`**, read and written by `DjangoPasswordEncoder`. Any active `auth_user` row can write; there are no roles. A fresh database has no user: set `ADMIN_USERNAME`/`ADMIN_PASSWORD` and `AdminBootstrap` creates one on startup — only if missing, never resetting an existing one.
-- Spring Session uses its own `spring_session` tables; Django's `django_session` is left alone. Switching backends logs the owner out once.
+Any enabled `app_user` row can write; there are no roles. A fresh database has no user: set `ADMIN_USERNAME`/`ADMIN_PASSWORD` and `AdminBootstrap` creates one on startup — only if missing, never resetting an existing one.
 
-### Matching DRF, and where it was not free
+Passwords go through Spring Security's `DelegatingPasswordEncoder`: new hashes are `{bcrypt}`. A hash from before V4 is `{pbkdf2-legacy}…` and verified, never written, by `LegacyPbkdf2PasswordEncoder`; because `UserAccounts` is the `UserDetailsPasswordService` and `DaoAuthenticationProvider` is given it, **the first successful login rewrites it as bcrypt** (basic auth and session login alike). Once `SELECT count(*) FROM app_user WHERE password LIKE '{pbkdf2-legacy}%'` is 0 in every environment, delete the class and its registration in `SecurityConfig`. A hash with no known prefix matches nothing.
 
-- **Request bodies are read as plain JSON (`Object`) and validated by `Form`**, not bound to DTOs with Bean Validation. That is the only way to keep DRF's semantics: PATCH leaves absent fields alone, PUT requires required fields but also leaves absent optional ones alone, every field's error is collected at once, and the messages are DRF's words (the admin forms show them beside inputs). `ApiDocs` then has to describe each body by hand for Swagger — **keep it in step with the service's `read()` method.**
-- **Error bodies are `{"detail": "..."}` or `{"field": ["..."]}`**, plus `non_field_errors`. The SPA's `describe()` in `services/api.ts` relies on both shapes, and retries a write once when a 403's `detail` contains "CSRF" — so those messages must keep saying CSRF.
-- **Trailing slashes:** every SPA URL ends in `/`; Spring matches neither form to the other by default. `WebConfig` runs `UrlHandlerFilter` first so both work, and stashes the original path so pagination links echo it back. Controller mappings and security matchers are therefore written **without** the trailing slash.
-- **CSRF is DRF's rule, not Spring's:** checked only for session-authenticated writes and for login (`SecurityConfig.needsCsrfCheck`). Anonymous writes (comments, reactions, `/view`) carry no token — the public pages never send one — and basic auth is never challenged (403, no `WWW-Authenticate`) so a browser never caches it. The token is a double-submit cookie named `csrftoken`, handed to the SPA in the body of `/api/auth/session/`, rotated on login and logout; `CsrfOriginCheck` adds Django's Origin check on top.
-- **CORS never rejects.** An origin not in `CORS_ALLOWED_ORIGINS` just gets no CORS headers, as with django-cors-headers; Spring's default would answer it with a bare 403.
+### Request bodies and errors
+
+- **Controllers take `JsonNode` and services call `RequestBodies`**, which turns it into a request record and runs Bean Validation. `read()` is a create. `patch()` is a JSON merge: the stored record (`XRequest.of(model)`) as a tree, the body's fields laid over it, then the same validation — so a field left out keeps its value, `null` clears a nullable one, and required fields stay required without a partial mode. Unknown and read-only fields are ignored. **There is no PUT.**
+- **Every problem is reported at once**: `{"snake_case_field": ["message", ...]}`. A value of the wrong JSON type is reported against its field ("Must be a list.", "Enter a valid date and time, as ISO 8601."); a body that is not an object is `non_field_errors`. Messages live in `validation/Messages` and on the annotations, written for the person filling the admin form in.
+- **Rules that need the database or more than one value stay in the services** and are raised as field errors with `ApiException.field/invalid`: slug taken or blank, ISBN checksum, release year ≤ next year, the same book twice, a comment's post existing and accepting comments, an emoji on offer.
+- `@Required` exists so that a missing field says "This field is required." and a blank one "This field may not be blank." — never both, which `@NotNull` + `@NotBlank` would.
+
+### HTTP behaviour worth keeping
+
+- **Trailing slashes:** every SPA URL ends in `/`; Spring matches neither form to the other by default. `WebConfig` runs Spring's `UrlHandlerFilter` first so both work, and stashes the original path so pagination links echo it back. Controller mappings and security matchers are therefore written **without** the trailing slash.
+- **CSRF is checked only for session-authenticated writes and for login** (`SecurityConfig.needsCsrfCheck`). Anonymous writes (comments, reactions, `/view`) carry no token — the public pages never send one — and basic auth is never challenged (403, no `WWW-Authenticate`) so a browser never caches it. The token is a double-submit `XSRF-TOKEN` cookie (HttpOnly) plus the `X-CSRFToken` header; the SPA gets the value from the body of `/api/auth/session/`, and it is rotated on login and logout. `CsrfOriginCheck` refuses an untrusted `Origin` first. **A CSRF refusal's `detail` must keep containing "CSRF"** — the SPA retries once on that.
+- **CORS never rejects.** An origin not in `CORS_ALLOWED_ORIGINS` just gets no CORS headers; Spring's default would answer it with a bare 403.
 - **Visibility is decided once per resource** (`PostQuery`, `BookQuery`, `CommentQuery`) and used by the list *and* every route addressed by slug or id, so a draft is a 404 to a visitor everywhere. A new route on an existing resource should go through the same query.
 - **Throttles** (`COMMENT_RATE_LIMIT`, `REACTION_RATE_LIMIT`) are in-memory sliding windows keyed by user or client address. Behind the tunnel the address is only per-visitor with `FORWARD_HEADERS_STRATEGY=native` (set in `docker-compose.prod.yml`).
-- `Labels` (tags/genres) and `Slugs` reproduce Django's `clean_labels` and `slugify` exactly — slugs already in links have to keep matching.
+- `Slugs` and `Labels` decide the slugs and tags already in the database and in shared links; changing their rules changes what an edited title or tag becomes.
 
 ### Tests
 
-Every API test extends `support/ApiTestBase`: a real server on a random port, a real Postgres (zonky embedded binaries, started once per JVM) with the real migrations, and a fresh state per test (tables truncated, pages reseeded, throttles reset). Callers are `support/Api` instances over `java.net.http` — `client` (anonymous), `owner()` (basic auth, which skips CSRF as DRF's `force_authenticate` did), and `browser()` (keeps cookies, for the session/CSRF tests). Fixtures go through the services' `save()` so slugs and publish-stamping happen as in production; `update(table, id, columns)` writes columns directly for what the API cannot (view counts, timestamps). A test that needs different properties (rate limits, upload size) is its own class with `@TestPropertySource`, and so its own Spring context.
+Every API test extends `support/ApiTestBase`: a real server on a random port, a real Postgres (zonky embedded binaries, started once per JVM) with the real migrations, and a fresh state per test (tables truncated, the seeded pages restored from a snapshot taken before the first test, throttles reset). Callers are `support/Api` instances over `java.net.http` — `client` (anonymous), `owner()` (basic auth, which needs no CSRF token), and `browser()` (keeps cookies, for the session/CSRF tests). Fixtures go through the services' `save()` so slugs and publish-stamping happen as in production; `update(table, id, columns)` writes columns directly for what the API cannot (view counts, timestamps). A test that needs different properties (rate limits, upload size) is its own class with `@TestPropertySource`, and so its own Spring context.
 
 ### Settings and the container
 
 **Per-environment values are in `ziantsabit-be/config/<env>.env`** (`dev`, `stg`, `prod`; committed), loaded by `run.sh`. **Never write a secret into one**: it is a Vault reference, `NAME=vault:<path>[#field]`, resolved by `vault-env.sh` when `run.sh` loads the file. They are written with the Compose names; for a host run `run.sh` maps `RUSTFS_*`, `SITE_ORIGINS` and `MEDIA_ORIGIN` onto the app's names and `host.docker.internal` onto `localhost`. A new compose-only rename needs the same mapping added there.
 
-Everything environment-specific is in `application.yml`, reading the **same variable names the Django deployment used** (`POSTGRES_*`, `CORS_ALLOWED_ORIGINS`, `AWS_S3_*`, …; `DJANGO_ALLOWED_HOSTS` is read as a fallback for `ALLOWED_HOSTS`), so `docker-compose.prod.yml` works with the existing `.env` unchanged. `DJANGO_SECRET_KEY` is no longer used.
+Everything environment-specific is in `application.yml` (`POSTGRES_*`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `AWS_S3_*`, …).
 
 The `Dockerfile` is two stages (a Gradle-wrapper build on `eclipse-temurin:25-jdk`, then `eclipse-temurin:25-jre`), running as UID 1000. There is no entrypoint script: Flyway migrates at startup. **Postgres and RustFS are not in the compose stack** — they are separate, already-running servers named in `.env` (`POSTGRES_HOST`, `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY`, `AWS_S3_ENDPOINT_URL`; `host.docker.internal` reaches the Docker host), and the bucket is created and made public-read by hand. With nothing to `depends_on`, a Postgres still booting fails Flyway and `restart: unless-stopped` retries. The healthcheck is `curl /actuator/health`, which is exempt from the allowed-hosts check because the container probes itself on 127.0.0.1.
 
@@ -217,7 +224,7 @@ Probes use `/actuator/health/liveness` and `/readiness`, which Spring Boot enabl
 
 ## Frontend/backend seam
 
-**This repo's frontend predates the backend it now talks to.** The section below describes the SPA as it is here, built against an early API with a fixed `?category=` filter. The backend (Django's final version, and this port of it) replaced categories with free-form `tags`, and added books, comments, reactions, page content and uploads — the newer SPA that uses those lives in the original `zian-tsabit-com` repository and has not been brought into this monorepo. Against this backend, `?category=` is simply ignored.
+**This repo's frontend predates the backend it now talks to.** The section below describes the SPA as it is here, built against an early API with a fixed `?category=` filter. The backend replaced categories with free-form `tags`, and added books, comments, reactions, page content and uploads — the newer SPA that uses those lives in the original `zian-tsabit-com` repository and has not been brought into this monorepo. Against this backend, `?category=` is simply ignored.
 
 `/books`, `/projects`, `/posts` and each one's `/…/:slug` detail route render live data from `GET /api/posts/`. `/` and the CV/About pages are still hardcoded copy, except Home's "Latest Updates" block, which is also live (see below).
 

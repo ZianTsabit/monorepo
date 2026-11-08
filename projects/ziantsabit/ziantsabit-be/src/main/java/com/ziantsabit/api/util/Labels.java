@@ -43,8 +43,8 @@ public final class Labels {
     }
 
     /**
-     * Case-insensitive identity for a label: Python's {@code str.casefold()},
-     * near enough. Upper-casing first is what folds "ß" to "ss".
+     * Case-insensitive identity for a label: full case folding, near enough.
+     * Upper-casing first is what folds "ß" to "ss".
      */
     public static String fold(String label) {
         return label.toUpperCase(Locale.ROOT).toLowerCase(Locale.ROOT);

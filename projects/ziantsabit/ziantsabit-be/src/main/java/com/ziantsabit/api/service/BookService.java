@@ -4,13 +4,16 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.ziantsabit.api.dto.BookRequest;
 import com.ziantsabit.api.dto.LabelCount;
 import com.ziantsabit.api.exception.ApiException;
 import com.ziantsabit.api.model.Book;
@@ -20,21 +23,25 @@ import com.ziantsabit.api.repository.BookRepository;
 import com.ziantsabit.api.util.Labels;
 import com.ziantsabit.api.util.Slugs;
 import com.ziantsabit.api.util.Sql;
-import com.ziantsabit.api.validation.Form;
 import com.ziantsabit.api.validation.Isbn;
+import com.ziantsabit.api.validation.RequestBodies;
+
+import tools.jackson.databind.JsonNode;
 
 /** Validating and saving catalogue entries. */
 @Service
 public class BookService {
 
     public static final int LABEL_LIMIT = 100;
-    public static final String SLUG_TAKEN = "book with this slug already exists.";
+    public static final String SLUG_TAKEN = "A book with this slug already exists.";
 
     private final BookRepository books;
+    private final RequestBodies bodies;
     private final Clock clock;
 
-    public BookService(BookRepository books, Clock clock) {
+    public BookService(BookRepository books, RequestBodies bodies, Clock clock) {
         this.books = books;
+        this.bodies = bodies;
         this.clock = clock;
     }
 
@@ -62,17 +69,16 @@ public class BookService {
     }
 
     @Transactional
-    public Book create(Object body) {
-        BookFields fields = new BookFields();
-        read(Form.of(body, false), fields, null);
-        return save(null, fields);
+    public Book create(JsonNode body) {
+        BookRequest request = bodies.read(body, BookRequest.class);
+        return save(null, fields(request, null));
     }
 
+    /** PATCH: the body is merged onto the stored book, so a field left out keeps its value. */
     @Transactional
-    public Book update(Book book, Object body, boolean partial) {
-        BookFields fields = BookFields.of(book);
-        read(Form.of(body, partial), fields, book.id());
-        return save(book.id(), fields);
+    public Book update(Book book, JsonNode body) {
+        BookRequest request = bodies.patch(BookRequest.of(book), body, BookRequest.class);
+        return save(book.id(), fields(request, book.id()));
     }
 
     /**
@@ -118,44 +124,53 @@ public class BookService {
         return author.isEmpty() ? base : base + "-" + author;
     }
 
-    private void read(Form form, BookFields fields, Long id) {
-        form.text("title", true, false, 200).ifPresent(title -> fields.title = title);
-        form.slug("slug", 220).ifPresent(slug -> {
-            if (slug.isEmpty()) {
-                form.error("slug", "Leave slug out entirely to have it generated from the title.");
-            } else if (books.slugTaken(slug, id)) {
-                form.error("slug", SLUG_TAKEN);
-            } else {
-                fields.slug = slug;
+    /**
+     * A validated request as fields to store, after the checks that need more
+     * than the value itself: slug uniqueness, the ISBN checksum, a release year
+     * no later than next year, and the same book twice.
+     */
+    private BookFields fields(BookRequest request, Long id) {
+        Map<String, Object> errors = new LinkedHashMap<>();
+        if (request.slug() != null) {
+            if (request.slug().isEmpty()) {
+                errors.put("slug", List.of("Leave slug out entirely to have it generated from the title."));
+            } else if (books.slugTaken(request.slug(), id)) {
+                errors.put("slug", List.of(SLUG_TAKEN));
             }
-        });
-        // A catalogue entry with no author is not a catalogue entry.
-        form.text("author", true, false, 200).ifPresent(author -> fields.author = author);
-        form.labels("genres", 50).ifPresent(genres -> fields.genres = Labels.clean(genres));
-        form.text("isbn", false, true, 17).ifPresent(raw -> {
-            String compact = Isbn.normalise(raw);
-            if (!compact.isEmpty() && !Isbn.isValid(compact)) {
-                form.error("isbn", "That is not a valid ISBN. Give 10 or 13 digits, hyphens optional.");
-            } else {
-                fields.isbn = compact;
-            }
-        });
-        form.nullableInteger("release_year", Book.EARLIEST_RELEASE_YEAR).ifPresent(year -> {
-            // The ceiling moves with the calendar, so the message names it.
-            int latest = latestReleaseYear();
-            if (year.isPresent() && year.get() > latest) {
-                form.error("release_year",
-                        "Give a year between " + Book.EARLIEST_RELEASE_YEAR + " and " + latest + ".");
-            } else {
-                fields.releaseYear = year.orElse(null);
-            }
-        });
-        form.text("review", false, true, 0).ifPresent(review -> fields.review = review);
-        form.url("cover_image_url", 500).ifPresent(url -> fields.coverImageUrl = url);
-        form.text("cover_image_alt", false, true, 200).ifPresent(alt -> fields.coverImageAlt = alt);
-        form.choice("status", false, Book.STATUSES, false).ifPresent(status -> fields.status = status);
-        form.check();
+        }
+        String isbn = Isbn.normalise(request.isbn() == null ? "" : request.isbn());
+        if (!isbn.isEmpty() && !Isbn.isValid(isbn)) {
+            errors.put("isbn", List.of("That is not a valid ISBN. Give 10 or 13 digits, hyphens optional."));
+        }
+        // The ceiling moves with the calendar, so the message names it.
+        int latest = latestReleaseYear();
+        if (request.releaseYear() != null && request.releaseYear() > latest) {
+            errors.put("release_year",
+                    List.of("Give a year between " + Book.EARLIEST_RELEASE_YEAR + " and " + latest + "."));
+        }
+        if (!errors.isEmpty()) {
+            throw ApiException.invalid(errors);
+        }
+
+        BookFields fields = new BookFields();
+        fields.title = request.title().strip();
+        fields.slug = request.slug() == null ? "" : request.slug();
+        fields.author = request.author().strip();
+        fields.genres = Labels.clean(request.genres() == null ? List.of() : request.genres());
+        fields.isbn = isbn;
+        fields.releaseYear = request.releaseYear();
+        fields.review = orBlank(request.review());
+        fields.coverImageUrl = orBlank(request.coverImageUrl());
+        fields.coverImageAlt = orBlank(request.coverImageAlt());
+        if (request.status() != null) {
+            fields.status = request.status();
+        }
         refuseDuplicate(fields, id);
+        return fields;
+    }
+
+    private static String orBlank(String value) {
+        return value == null ? "" : value.strip();
     }
 
     /**

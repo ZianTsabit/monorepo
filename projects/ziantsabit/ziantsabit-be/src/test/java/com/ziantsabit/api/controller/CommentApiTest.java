@@ -12,7 +12,7 @@ import com.ziantsabit.api.model.Post;
 import com.ziantsabit.api.support.ApiTestBase;
 import com.ziantsabit.api.support.Response;
 
-/** /api/comments/. Ported from the Django suite's CommentAPITests (the throttle tests are in CommentThrottleTest). */
+/** /api/comments/. The rate limit is tested in ThrottleTest. */
 class CommentApiTest extends ApiTestBase {
 
     Post post;
@@ -32,7 +32,7 @@ class CommentApiTest extends ApiTestBase {
     }
 
     Map<String, Object> comment(String status) {
-        return row("myapp_comment", comment(post, "Visitor", "Nice one.", status));
+        return row("comment", comment(post, "Visitor", "Nice one.", status));
     }
 
     @Test
@@ -87,7 +87,7 @@ class CommentApiTest extends ApiTestBase {
         Response response = client.post("/api/comments/",
                 body("post", post.slug(), "author_name", "Ada", "body", "x".repeat(2001)));
         assertThat(response.status()).isEqualTo(400);
-        assertThat(response.get("body")).isEqualTo(List.of("Ensure this field has no more than 2000 characters."));
+        assertThat(response.get("body")).isEqualTo(List.of("Must be at most 2000 characters."));
     }
 
     @Test
@@ -103,7 +103,7 @@ class CommentApiTest extends ApiTestBase {
         Response response = client.post("/api/comments/", body("post", draft.slug(), "author_name", "Ada", "body", "Hi."));
         assertThat(response.status()).isEqualTo(400);
         assertThat(response.get("post")).isEqualTo(List.of("No post found with that slug."));
-        assertThat(count("myapp_comment")).isZero();
+        assertThat(count("comment")).isZero();
     }
 
     @Test
@@ -111,7 +111,7 @@ class CommentApiTest extends ApiTestBase {
         Response response = client.post("/api/comments/",
                 body("post", "nothing-here", "author_name", "Ada", "body", "Hi."));
         assertThat(response.status()).isEqualTo(400);
-        assertThat(response.get("post")).isEqualTo(List.of("Object with slug=nothing-here does not exist."));
+        assertThat(response.get("post")).isEqualTo(List.of("No post found with that slug."));
     }
 
     @Test
@@ -191,23 +191,23 @@ class CommentApiTest extends ApiTestBase {
     void anonymousCannotDeleteAComment() {
         long id = comment(post, "Visitor", "Nice one.");
         assertThat(client.delete(detail(id)).status()).isEqualTo(403);
-        assertThat(count("myapp_comment")).isEqualTo(1);
+        assertThat(count("comment")).isEqualTo(1);
     }
 
     @Test
     void theOwnerCanHideAndRestoreAComment() {
         long id = comment(post, "Visitor", "Nice one.");
         owner().patch(detail(id), body("status", "hidden"));
-        assertThat(row("myapp_comment", id).get("status")).isEqualTo("hidden");
+        assertThat(row("comment", id).get("status")).isEqualTo("hidden");
         owner().patch(detail(id), body("status", "published"));
-        assertThat(row("myapp_comment", id).get("status")).isEqualTo("published");
+        assertThat(row("comment", id).get("status")).isEqualTo("published");
     }
 
     @Test
     void theOwnerCanDeleteAComment() {
         long id = comment(post, "Visitor", "Nice one.");
         assertThat(owner().delete(detail(id)).status()).isEqualTo(204);
-        assertThat(count("myapp_comment")).isZero();
+        assertThat(count("comment")).isZero();
     }
 
     @Test
@@ -219,6 +219,6 @@ class CommentApiTest extends ApiTestBase {
     void deletingAPostTakesItsComments() {
         comment(post, "Visitor", "Nice one.");
         assertThat(owner().delete("/api/posts/" + post.slug() + "/").status()).isEqualTo(204);
-        assertThat(count("myapp_comment")).isZero();
+        assertThat(count("comment")).isZero();
     }
 }

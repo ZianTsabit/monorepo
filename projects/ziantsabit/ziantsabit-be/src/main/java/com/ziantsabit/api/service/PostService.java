@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.ziantsabit.api.dto.LabelCount;
+import com.ziantsabit.api.dto.PostRequest;
 import com.ziantsabit.api.dto.ViewCount;
 import com.ziantsabit.api.exception.ApiException;
 import com.ziantsabit.api.model.Post;
@@ -20,7 +21,9 @@ import com.ziantsabit.api.repository.PostRepository;
 import com.ziantsabit.api.util.Labels;
 import com.ziantsabit.api.util.Slugs;
 import com.ziantsabit.api.util.Sql;
-import com.ziantsabit.api.validation.Form;
+import com.ziantsabit.api.validation.RequestBodies;
+
+import tools.jackson.databind.JsonNode;
 
 /** Validating and saving posts. */
 @Service
@@ -29,13 +32,15 @@ public class PostService {
     // Long enough to be the whole vocabulary of a personal site, short enough
     // that a runaway list of typo'd labels cannot become the biggest response.
     public static final int LABEL_LIMIT = 100;
-    public static final String SLUG_TAKEN = "post with this slug already exists.";
+    public static final String SLUG_TAKEN = "A post with this slug already exists.";
 
     private final PostRepository posts;
+    private final RequestBodies bodies;
     private final Clock clock;
 
-    public PostService(PostRepository posts, Clock clock) {
+    public PostService(PostRepository posts, RequestBodies bodies, Clock clock) {
         this.posts = posts;
+        this.bodies = bodies;
         this.clock = clock;
     }
 
@@ -75,18 +80,16 @@ public class PostService {
     }
 
     @Transactional
-    public Post create(Object body) {
-        PostFields fields = new PostFields();
-        read(Form.of(body, false), fields, null);
-        return save(null, fields);
+    public Post create(JsonNode body) {
+        PostRequest request = bodies.read(body, PostRequest.class);
+        return save(null, fields(request, null));
     }
 
-    /** PUT ({@code partial} false) or PATCH: fields left out keep their value either way. */
+    /** PATCH: the body is merged onto the stored post, so a field left out keeps its value. */
     @Transactional
-    public Post update(Post post, Object body, boolean partial) {
-        PostFields fields = PostFields.of(post);
-        read(Form.of(body, partial), fields, post.id());
-        return save(post.id(), fields);
+    public Post update(Post post, JsonNode body) {
+        PostRequest request = bodies.patch(PostRequest.of(post), body, PostRequest.class);
+        return save(post.id(), fields(request, post.id()));
     }
 
     /**
@@ -126,33 +129,42 @@ public class PostService {
         }
     }
 
-    /** The serializer's half: every sent field checked, then applied. */
-    private void read(Form form, PostFields fields, Long id) {
-        form.text("title", true, false, 200).ifPresent(title -> fields.title = title);
-        form.slug("slug", 220).ifPresent(slug -> {
-            if (slug.isEmpty()) {
-                // Blank would otherwise mean "generate one", which for an update
-                // silently changes a published URL. Omitting the key is how
-                // either meaning is asked for.
-                form.error("slug", "Leave slug out entirely to have it generated from the title.");
-            } else if (posts.slugTaken(slug, id)) {
-                form.error("slug", SLUG_TAKEN);
-            } else {
-                fields.slug = slug;
+    /** A validated request as fields to store, after the checks that need the database. */
+    private PostFields fields(PostRequest request, Long id) {
+        if (request.slug() != null) {
+            if (request.slug().isEmpty()) {
+                // Omitting the key is how "generate one" is asked for.
+                throw ApiException.field("slug", "Leave slug out entirely to have it generated from the title.");
             }
-        });
-        form.text("excerpt", false, true, 0).ifPresent(excerpt -> fields.excerpt = excerpt);
-        form.text("body", false, true, 0).ifPresent(body -> fields.body = body);
-        form.url("cover_image_url", 500).ifPresent(url -> fields.coverImageUrl = url);
-        form.text("cover_image_alt", false, true, 200).ifPresent(alt -> fields.coverImageAlt = alt);
+            if (posts.slugTaken(request.slug(), id)) {
+                throw ApiException.field("slug", SLUG_TAKEN);
+            }
+        }
+        PostFields fields = new PostFields();
+        fields.title = request.title().strip();
+        fields.slug = request.slug() == null ? "" : request.slug();
+        fields.excerpt = orBlank(request.excerpt());
+        fields.body = orBlank(request.body());
+        fields.coverImageUrl = orBlank(request.coverImageUrl());
+        fields.coverImageAlt = orBlank(request.coverImageAlt());
         // Cleaned here as well as on save, so the response to a write is what
         // was stored rather than what was sent.
-        form.labels("tags", 50).ifPresent(tags -> fields.tags = Labels.clean(tags));
-        form.choice("status", false, Post.STATUSES, false).ifPresent(status -> fields.status = status);
-        form.nullableDateTime("published_at").ifPresent(at -> fields.publishedAt = at.orElse(null));
-        form.bool("comments_enabled").ifPresent(on -> fields.commentsEnabled = on);
-        form.bool("reactions_enabled").ifPresent(on -> fields.reactionsEnabled = on);
-        form.choice("theme", false, Post.THEMES, true).ifPresent(theme -> fields.theme = theme);
-        form.check();
+        fields.tags = Labels.clean(request.tags() == null ? List.of() : request.tags());
+        if (request.status() != null) {
+            fields.status = request.status();
+        }
+        fields.publishedAt = request.publishedAt();
+        if (request.commentsEnabled() != null) {
+            fields.commentsEnabled = request.commentsEnabled();
+        }
+        if (request.reactionsEnabled() != null) {
+            fields.reactionsEnabled = request.reactionsEnabled();
+        }
+        fields.theme = orBlank(request.theme());
+        return fields;
+    }
+
+    private static String orBlank(String value) {
+        return value == null ? "" : value.strip();
     }
 }

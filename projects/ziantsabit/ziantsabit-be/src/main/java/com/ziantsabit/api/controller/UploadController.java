@@ -10,13 +10,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.ziantsabit.api.dto.ApiDocs;
 import com.ziantsabit.api.dto.UploadedImage;
 import com.ziantsabit.api.service.UploadService;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -35,9 +32,6 @@ public class UploadController {
             consumes = {MediaType.MULTIPART_FORM_DATA_VALUE, MediaType.APPLICATION_FORM_URLENCODED_VALUE})
     @Operation(summary = "Upload one image and get back its public URL, for a cover_image_url or a Markdown "
             + "image in a body. Authenticated callers only.")
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(
-            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
-            schema = @Schema(implementation = ApiDocs.ImageUploadInput.class)))
     public ResponseEntity<UploadedImage> upload(
             @RequestParam(name = "file", required = false) MultipartFile file, HttpServletRequest request)
             throws IOException {

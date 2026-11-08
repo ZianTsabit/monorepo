@@ -18,7 +18,7 @@ import com.ziantsabit.api.support.ApiTestBase;
 import com.ziantsabit.api.support.Response;
 import com.ziantsabit.api.validation.Isbn;
 
-/** Ported from the Django suite's BookModelTests, BookAPITests and BookPaginationTests. */
+/** Books: the save rules, the API, and pagination. */
 class BookApiTest extends ApiTestBase {
 
     static String detail(Book book) {
@@ -435,14 +435,14 @@ class BookApiTest extends ApiTestBase {
         @Test
         void authenticatedDelete() {
             assertThat(owner().delete(detail(dune)).status()).isEqualTo(204);
-            assertThat(exists("myapp_book", dune.id())).isFalse();
+            assertThat(exists("book", dune.id())).isFalse();
         }
 
         @Test
         void deletingABookLeavesPostsAlone() {
             Post post = post("On Dune", p -> p.tags = List.of("Books"));
             owner().delete(detail(dune));
-            assertThat(exists("myapp_post", post.id())).isTrue();
+            assertThat(exists("post", post.id())).isTrue();
         }
     }
 

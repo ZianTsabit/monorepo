@@ -16,8 +16,7 @@ import com.ziantsabit.api.exception.Throttled;
 import jakarta.servlet.http.HttpServletRequest;
 
 /**
- * A per-caller sliding-window rate limit, the same algorithm as DRF's
- * ScopedRateThrottle: remember when each of the caller's recent requests
+ * A per-caller sliding-window rate limit: remember when each of the caller's recent requests
  * arrived, and refuse one that would make more than {@code count} inside the
  * window.
  *
@@ -28,8 +27,8 @@ import jakarta.servlet.http.HttpServletRequest;
  * {@code native}; otherwise every visitor shares the proxy's address and
  * therefore one budget.
  *
- * <p>In memory, so the counts reset on restart. That is the same trade DRF's
- * per-process cache made: a brake on a script, not a defence against a
+ * <p>In memory, so the counts reset on restart and each replica counts on its
+ * own (hence one API replica): a brake on a script, not a defence against a
  * determined one -- moderation in the admin console is what deals with a bad
  * comment.
  */

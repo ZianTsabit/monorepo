@@ -5,7 +5,7 @@ import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-/** The {@code app.*} block of application.yml. Lists are space-separated, as Django's were. */
+/** The {@code app.*} block of application.yml. Lists are space-separated, so one env var holds them. */
 @ConfigurationProperties("app")
 public record AppProperties(
         String allowedHosts,
@@ -18,7 +18,6 @@ public record AppProperties(
         long maxUploadSize,
         String adminUsername,
         String adminPassword,
-        int passwordIterations,
         Storage storage) {
 
     public record Storage(

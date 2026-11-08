@@ -13,8 +13,7 @@ import com.ziantsabit.api.exception.ApiException;
 import jakarta.servlet.http.HttpServletRequest;
 
 /**
- * One page of a list, in the envelope DRF's PageNumberPagination used:
- * {@code {count, next, previous, results}}.
+ * One page of a list: {@code {count, next, previous, results}}.
  *
  * <p>{@code next} and {@code previous} are absolute URLs built from the request
  * itself, so a client follows them as given -- {@code useAdminPosts} and
@@ -29,8 +28,7 @@ public record PageResponse<T>(long count, String next, String previous, List<T> 
      * Read {@code ?page=}, fetch that page, and wrap it.
      *
      * <p>A page that is not a positive integer, or is past the last page, is a
-     * 404 rather than an empty page -- what DRF did, and what tells a client
-     * holding a stale "next" link that the list has shrunk under it. Page 1 of
+     * 404 rather than an empty page, which tells a client holding a stale "next" link that the list has shrunk under it. Page 1 of
      * an empty list is still a page, with no results.
      *
      * @param fetch given (limit, offset), returns that slice in order
@@ -72,8 +70,8 @@ public record PageResponse<T>(long count, String next, String previous, List<T> 
         if (original instanceof String path) {
             url.replacePath(path);
         }
-        // Every other parameter kept, in alphabetical order as DRF wrote them;
-        // page 1 is the URL with no page at all.
+        // Every other parameter kept, in alphabetical order so a link is the
+        // same however the query was written; page 1 is the URL with no page.
         MultiValueMap<String, String> params = new LinkedMultiValueMap<>(url.build().getQueryParams());
         params.remove("page");
         if (page > 1) {

@@ -9,12 +9,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.ziantsabit.api.dto.ApiDocs;
+import com.ziantsabit.api.dto.BookRequest;
 import com.ziantsabit.api.dto.LabelCount;
 import com.ziantsabit.api.dto.PageResponse;
 import com.ziantsabit.api.model.Book;
@@ -28,6 +27,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import tools.jackson.databind.JsonNode;
 
 /** The book catalogue, addressed by slug. Reads are open; writes need the owner. */
 @RestController
@@ -70,8 +70,8 @@ public class BookController {
 
     @PostMapping
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            content = @Content(schema = @Schema(implementation = ApiDocs.BookInput.class)))
-    public ResponseEntity<Book> create(@RequestBody(required = false) Object body) {
+            content = @Content(schema = @Schema(implementation = BookRequest.class)))
+    public ResponseEntity<Book> create(@RequestBody(required = false) JsonNode body) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(body));
     }
 
@@ -86,20 +86,13 @@ public class BookController {
         return visible(slug, request);
     }
 
-    @PutMapping("/{slug}")
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            content = @Content(schema = @Schema(implementation = ApiDocs.BookInput.class)))
-    public Book replace(@PathVariable String slug, @RequestBody(required = false) Object body,
-            HttpServletRequest request) {
-        return service.update(visible(slug, request), body, false);
-    }
 
     @PatchMapping("/{slug}")
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            content = @Content(schema = @Schema(implementation = ApiDocs.BookInput.class)))
-    public Book patch(@PathVariable String slug, @RequestBody(required = false) Object body,
+            content = @Content(schema = @Schema(implementation = BookRequest.class)))
+    public Book patch(@PathVariable String slug, @RequestBody(required = false) JsonNode body,
             HttpServletRequest request) {
-        return service.update(visible(slug, request), body, true);
+        return service.update(visible(slug, request), body);
     }
 
     @DeleteMapping("/{slug}")

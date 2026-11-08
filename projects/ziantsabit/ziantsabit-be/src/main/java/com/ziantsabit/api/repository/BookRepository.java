@@ -17,7 +17,7 @@ import com.ziantsabit.api.model.BookFields;
 import com.ziantsabit.api.query.BookQuery;
 import com.ziantsabit.api.util.Sql;
 
-/** SQL for {@code myapp_book}. */
+/** SQL for {@code book}. */
 @Repository
 public class BookRepository {
 
@@ -29,13 +29,13 @@ public class BookRepository {
 
     public long count(BookQuery query) {
         Sql.Where where = query.where();
-        return jdbc.sql("SELECT count(*) FROM myapp_book b" + where.sql())
+        return jdbc.sql("SELECT count(*) FROM book b" + where.sql())
                 .params(where.params()).query(Long.class).single();
     }
 
     public List<Book> find(BookQuery query, int limit, long offset) {
         Sql.Where where = query.where();
-        return jdbc.sql("SELECT b.* FROM myapp_book b" + where.sql() + query.orderBy()
+        return jdbc.sql("SELECT b.* FROM book b" + where.sql() + query.orderBy()
                         + " LIMIT :limit OFFSET :offset")
                 .params(where.params()).param("limit", limit).param("offset", offset)
                 .query(BookRepository::book).list();
@@ -43,24 +43,24 @@ public class BookRepository {
 
     public Optional<Book> findBySlug(BookQuery query, String slug) {
         Sql.Where where = query.where().and("b.slug = :slug", "slug", slug);
-        return jdbc.sql("SELECT b.* FROM myapp_book b" + where.sql()).params(where.params())
+        return jdbc.sql("SELECT b.* FROM book b" + where.sql()).params(where.params())
                 .query(BookRepository::book).optional();
     }
 
     public Book get(long id) {
-        return jdbc.sql("SELECT * FROM myapp_book WHERE id = :id").param("id", id)
+        return jdbc.sql("SELECT * FROM book WHERE id = :id").param("id", id)
                 .query(BookRepository::book).single();
     }
 
     public boolean slugTaken(String slug, Long excludeId) {
-        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM myapp_book WHERE slug = :slug AND id IS DISTINCT FROM :id)")
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM book WHERE slug = :slug AND id IS DISTINCT FROM :id)")
                 .param("slug", slug).param("id", excludeId).query(Boolean.class).single();
     }
 
     /** The first other book with this title and author, ignoring case. */
     public Optional<Book> sameBook(String title, String author, Long excludeId) {
         return jdbc.sql("""
-                SELECT * FROM myapp_book
+                SELECT * FROM book
                  WHERE upper(title) = upper(:title) AND upper(author) = upper(:author)
                    AND id IS DISTINCT FROM :id
                  ORDER BY created_at DESC, id DESC
@@ -71,7 +71,7 @@ public class BookRepository {
 
     public long insert(BookFields book, Instant now) {
         return jdbc.sql("""
-                INSERT INTO myapp_book (title, slug, author, genres, isbn, release_year, review,
+                INSERT INTO book (title, slug, author, genres, isbn, release_year, review,
                                         cover_image_url, cover_image_alt, status, created_at, updated_at)
                 VALUES (:title, :slug, :author, :genres, :isbn, :releaseYear, :review,
                         :coverImageUrl, :coverImageAlt, :status, :now, :now)
@@ -82,7 +82,7 @@ public class BookRepository {
 
     public void update(long id, BookFields book, Instant now) {
         jdbc.sql("""
-                UPDATE myapp_book
+                UPDATE book
                    SET title = :title, slug = :slug, author = :author, genres = :genres, isbn = :isbn,
                        release_year = :releaseYear, review = :review, cover_image_url = :coverImageUrl,
                        cover_image_alt = :coverImageAlt, status = :status, updated_at = :now
@@ -92,12 +92,12 @@ public class BookRepository {
     }
 
     public void delete(long id) {
-        jdbc.sql("DELETE FROM myapp_book WHERE id = :id").param("id", id).update();
+        jdbc.sql("DELETE FROM book WHERE id = :id").param("id", id).update();
     }
 
     public List<LabelCount> genreSpellings(BookQuery query) {
         Sql.Where where = query.where();
-        return jdbc.sql("SELECT g.label AS name, count(*) AS count FROM myapp_book b "
+        return jdbc.sql("SELECT g.label AS name, count(*) AS count FROM book b "
                         + "CROSS JOIN LATERAL unnest(b.genres) AS g(label)" + where.sql() + " GROUP BY g.label")
                 .params(where.params())
                 .query((row, n) -> new LabelCount(row.getString("name"), row.getLong("count"))).list();

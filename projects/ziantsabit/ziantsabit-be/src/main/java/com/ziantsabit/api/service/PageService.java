@@ -8,21 +8,26 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.ziantsabit.api.dto.PageRequest;
 import com.ziantsabit.api.exception.ApiException;
 import com.ziantsabit.api.model.PageContent;
 import com.ziantsabit.api.repository.PageRepository;
 import com.ziantsabit.api.util.Sql;
-import com.ziantsabit.api.validation.Form;
 import com.ziantsabit.api.validation.PageDocuments;
+import com.ziantsabit.api.validation.RequestBodies;
+
+import tools.jackson.databind.JsonNode;
 
 /** Reading and writing the CV and About page documents. */
 @Service
 public class PageService {
 
     private final PageRepository pages;
+    private final RequestBodies bodies;
 
-    public PageService(PageRepository pages) {
+    public PageService(PageRepository pages, RequestBodies bodies) {
         this.pages = pages;
+        this.bodies = bodies;
     }
 
     public List<PageContent> list() {
@@ -47,24 +52,17 @@ public class PageService {
         return pages.findByKey(key).orElseThrow();
     }
 
-    /**
-     * PUT ({@code partial} false) or PATCH. Only {@code data} is writable: a
-     * writable key would let a PUT turn the CV into the About page.
-     */
+    /** PATCH: a new {@code data} document replaces the stored one; nothing else is writable. */
     @Transactional
-    public PageContent update(String key, Object body, boolean partial) {
+    public PageContent update(String key, JsonNode body) {
         PageContent page = get(key);
-        Form form = Form.of(body, partial);
-        Optional<Map<String, Object>> data = form.json("data", true).flatMap(raw -> {
-            try {
-                return Optional.of(PageDocuments.normalise(key, raw));
-            } catch (PageDocuments.Invalid invalid) {
-                form.error("data", invalid.detail());
-                return Optional.empty();
-            }
-        });
-        form.check();
-        Map<String, Object> document = data.orElse(page.data());
+        PageRequest request = bodies.patch(new PageRequest(page.data()), body, PageRequest.class);
+        Map<String, Object> document;
+        try {
+            document = PageDocuments.normalise(key, request.data());
+        } catch (PageDocuments.Invalid invalid) {
+            throw ApiException.invalid(Map.of("data", invalid.detail()));
+        }
         Instant now = Sql.now();
         pages.update(key, document, now);
         // The document as normalised, not re-read: jsonb stores keys in its own

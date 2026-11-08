@@ -5,18 +5,18 @@ import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.ziantsabit.api.dto.ApiDocs;
+import com.ziantsabit.api.dto.PageRequest;
 import com.ziantsabit.api.model.PageContent;
 import com.ziantsabit.api.service.PageService;
 
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import tools.jackson.databind.JsonNode;
 
 /**
  * The CV and About pages' content: read by anyone, written by the owner.
@@ -48,17 +48,11 @@ public class PageController {
         return service.get(key);
     }
 
-    @PutMapping("/{key}")
-    @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            content = @Content(schema = @Schema(implementation = ApiDocs.PageInput.class)))
-    public PageContent replace(@PathVariable String key, @RequestBody(required = false) Object body) {
-        return service.update(key, body, false);
-    }
 
     @PatchMapping("/{key}")
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            content = @Content(schema = @Schema(implementation = ApiDocs.PageInput.class)))
-    public PageContent patch(@PathVariable String key, @RequestBody(required = false) Object body) {
-        return service.update(key, body, true);
+            content = @Content(schema = @Schema(implementation = PageRequest.class)))
+    public PageContent patch(@PathVariable String key, @RequestBody(required = false) JsonNode body) {
+        return service.update(key, body);
     }
 }

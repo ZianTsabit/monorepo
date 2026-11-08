@@ -13,13 +13,13 @@ import com.ziantsabit.api.model.Comment;
 import com.ziantsabit.api.query.CommentQuery;
 import com.ziantsabit.api.util.Sql;
 
-/** SQL for {@code myapp_comment}, always joined to its post for the slug and title. */
+/** SQL for {@code comment}, always joined to its post for the slug and title. */
 @Repository
 public class CommentRepository {
 
     private static final String SELECT = """
             SELECT c.*, p.slug AS post_slug, p.title AS post_title
-              FROM myapp_comment c JOIN myapp_post p ON p.id = c.post_id""";
+              FROM comment c JOIN post p ON p.id = c.post_id""";
 
     private final JdbcClient jdbc;
 
@@ -28,7 +28,7 @@ public class CommentRepository {
     }
 
     public long count(CommentQuery query) {
-        return jdbc.sql("SELECT count(*) FROM myapp_comment c JOIN myapp_post p ON p.id = c.post_id"
+        return jdbc.sql("SELECT count(*) FROM comment c JOIN post p ON p.id = c.post_id"
                         + query.where().sql())
                 .params(query.where().params()).query(Long.class).single();
     }
@@ -52,7 +52,7 @@ public class CommentRepository {
 
     public long insert(long postId, String authorName, String body, String status, Instant now) {
         return jdbc.sql("""
-                INSERT INTO myapp_comment (post_id, author_name, body, status, created_at, updated_at)
+                INSERT INTO comment (post_id, author_name, body, status, created_at, updated_at)
                 VALUES (:post, :authorName, :body, :status, :now, :now)
                 RETURNING id""")
                 .param("post", postId).param("authorName", authorName).param("body", body)
@@ -62,7 +62,7 @@ public class CommentRepository {
 
     public void update(long id, long postId, String authorName, String body, String status, Instant now) {
         jdbc.sql("""
-                UPDATE myapp_comment
+                UPDATE comment
                    SET post_id = :post, author_name = :authorName, body = :body, status = :status,
                        updated_at = :now
                  WHERE id = :id""")
@@ -72,11 +72,11 @@ public class CommentRepository {
     }
 
     public void delete(long id) {
-        jdbc.sql("DELETE FROM myapp_comment WHERE id = :id").param("id", id).update();
+        jdbc.sql("DELETE FROM comment WHERE id = :id").param("id", id).update();
     }
 
     public long postIdOf(long commentId) {
-        return jdbc.sql("SELECT post_id FROM myapp_comment WHERE id = :id").param("id", commentId)
+        return jdbc.sql("SELECT post_id FROM comment WHERE id = :id").param("id", commentId)
                 .query(Long.class).single();
     }
 
