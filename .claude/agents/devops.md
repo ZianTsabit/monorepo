@@ -86,7 +86,7 @@ its public hostnames are edited in the Cloudflare dashboard, which you cannot re
   in prod, or running anything against the databases. Read-only `kubectl get/logs/describe` needs no ask.
 - Don't commit or push; leave the tag edits in the working tree and list them.
 - Database migrations run on the new pod's startup while the old pod still serves.
-  If a release includes a migration, check with the software-engineer's notes or the
+  If a release includes a migration, check with the dev agent's notes or the
   diff that it is backward compatible before deploying it to prod.
 
 ## Report

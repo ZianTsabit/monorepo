@@ -1,6 +1,6 @@
 # agents
 
-Runs the [`software-engineer`](../../.claude/agents/software-engineer.md) agent on
+Runs the [`dev`](../../.claude/agents/dev.md) agent on
 GitHub issues, inside the home k3s cluster. Open an issue, add the `agent:todo`
 label, and within a few minutes a draft PR appears for review.
 
@@ -9,7 +9,7 @@ CronJob issue-poller (every 3 min)
   └─ oldest open issue labelled agent:todo, opened by the owner
        └─ Job agent-issue-<n>
             ├─ init container "agent"   Claude credential only
-            │    fetch issue → clone → claude -p (software-engineer role) → patch + report
+            │    fetch issue → clone → claude -p (dev role) → patch + report
             └─ container "publish"      GitHub token only
                  fresh clone → apply patch → push agent/issue-<n> → draft PR → comment, label
 ```
@@ -45,7 +45,7 @@ set the label back to `agent:todo`.
 ## Traces
 
 Every run is traced in Langfuse ([`projects/langfuse`](../langfuse), on the laptop):
-one trace per run named `issue #N: title`, tagged `software-engineer`, `issue-N` and
+one trace per run named `issue #N: title`, tagged `dev`, `issue-N` and
 the outcome, with a span per model message (tokens, cache) and per tool call (input,
 output, errors), and the run's exact cost. Open http://localhost:3000 → project
 `agents` → Tracing. With the laptop off, the run still works; it just isn't traced.

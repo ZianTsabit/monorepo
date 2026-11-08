@@ -95,7 +95,7 @@ payload=$(jq -R -s \
        a("langfuse.trace.input"; "\($title)\n\n\($body)" | clip(8000)),
        a("langfuse.trace.output"; $report | clip(8000)),
        {key: "langfuse.trace.tags", value: {arrayValue: {values:
-         [{stringValue: "software-engineer"}, {stringValue: "issue-\($issue)"}, {stringValue: $status}]}}},
+         [{stringValue: "dev"}, {stringValue: "issue-\($issue)"}, {stringValue: $status}]}}},
        a("langfuse.trace.metadata.status"; $status), a("langfuse.trace.metadata.pr"; $pr),
        a("langfuse.trace.metadata.repo"; $repo),
        a("langfuse.trace.metadata.num_turns"; $res.num_turns // 0),

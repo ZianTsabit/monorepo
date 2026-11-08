@@ -1,5 +1,5 @@
 ---
-name: software-engineer
+name: dev
 description: Full-stack engineer for ziantsabit.com -- builds features and fixes bugs in the React + Vite SPA (projects/ziantsabit/ziantsabit-fe) and the Spring Boot API (projects/ziantsabit/ziantsabit-be), including Flyway migrations and backend tests. Use for any code change to the site. Does not deploy; hands a release over to the devops agent.
 ---
 

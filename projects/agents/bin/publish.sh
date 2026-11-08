@@ -23,7 +23,7 @@ trace() { trace-upload.sh "$out/stream.tsv" "$1" "${2:-}" || true; }
 # it a second time.
 on_error() {
   trap - ERR
-  printf '🤖 The software-engineer agent finished its work, but publishing it failed at: `%s`.\n\nCheck the GitHub token'"'"'s permissions (Contents, Issues, Pull requests: read and write). Logs: `kubectl -n agents logs job/agent-issue-%s -c publish`.\n' "$BASH_COMMAND" "$ISSUE" | comment || true
+  printf '🤖 The dev agent finished its work, but publishing it failed at: `%s`.\n\nCheck the GitHub token'"'"'s permissions (Contents, Issues, Pull requests: read and write). Logs: `kubectl -n agents logs job/agent-issue-%s -c publish`.\n' "$BASH_COMMAND" "$ISSUE" | comment || true
   label agent:failed || true
   trace publish-failed
   exit 0
@@ -33,10 +33,10 @@ trap on_error ERR
 case "$status" in
   ok) ;;
   nochange)
-    printf '🤖 The software-engineer agent made no changes.\n\n<details><summary>Its report</summary>\n\n%s\n\n</details>\n' "$report" | comment
+    printf '🤖 The dev agent made no changes.\n\n<details><summary>Its report</summary>\n\n%s\n\n</details>\n' "$report" | comment
     label agent:failed; trace nochange; exit 0 ;;
   *)
-    printf '🤖 The software-engineer agent could not finish.\n\n%s\n' "$report" | comment
+    printf '🤖 The dev agent could not finish.\n\n%s\n' "$report" | comment
     label agent:failed; trace failed; exit 0 ;;
 esac
 
@@ -47,14 +47,14 @@ git checkout --quiet "$(cat "$out/base")"
 git checkout --quiet -b "$branch"
 git -c core.hooksPath=/dev/null apply --index "$out/changes.patch"
 git -c core.hooksPath=/dev/null \
-    -c user.name="ziantsabit software-engineer agent" \
-    -c user.email="software-engineer-agent@users.noreply.github.com" \
+    -c user.name="ziantsabit dev agent" \
+    -c user.email="dev-agent@users.noreply.github.com" \
     commit --quiet -m "$title (#$ISSUE)" \
-    -m "Written by the software-engineer AI agent for issue #$ISSUE. Review before merging."
+    -m "Written by the dev AI agent for issue #$ISSUE. Review before merging."
 git -c core.hooksPath=/dev/null push --quiet --force origin "$branch"
 
 # "Closes #N" makes GitHub close the issue when the PR is merged.
-pr_body=$(printf '> 🤖 **Opened by the software-engineer AI agent.** Closes #%s. Nothing here is merged or deployed; review it first.\n\n%s\n' "$ISSUE" "$report")
+pr_body=$(printf '> 🤖 **Opened by the dev AI agent.** Closes #%s. Nothing here is merged or deployed; review it first.\n\n%s\n' "$ISSUE" "$report")
 url=$(gh pr list -R "$REPO" --head "$branch" --state open --json url -q '.[0].url')
 if [ -n "$url" ]; then
   gh pr edit "$url" --body "$pr_body" >/dev/null

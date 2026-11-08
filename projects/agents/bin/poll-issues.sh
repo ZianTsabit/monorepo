@@ -16,8 +16,8 @@ existing=$(gh label list -R "$REPO" --limit 200 --json name -q '.[].name')
 while IFS='|' read -r name color desc; do
   grep -qxF "$name" <<<"$existing" || gh label create "$name" -R "$REPO" --color "$color" --description "$desc" >/dev/null
 done <<'EOF'
-agent:todo|0E8A16|Ready for the software-engineer agent (owner only)
-agent:working|FBCA04|The software-engineer agent is on it
+agent:todo|0E8A16|Ready for the dev agent (owner only)
+agent:working|FBCA04|The dev agent is on it
 agent:done|5319E7|The agent opened a draft PR
 agent:failed|B60205|The agent run failed; see the issue comment
 EOF
@@ -33,7 +33,7 @@ kubectl -n "$NAMESPACE" get jobs -l app=agent-run,reported!=true -o json \
         | jq -r '[.items[].status | (.initContainerStatuses // [])[], (.containerStatuses // [])[]
                   | select(.state.terminated and .state.terminated.exitCode != 0)
                   | "\(.name): \(.state.terminated.reason) (exit \(.state.terminated.exitCode))"] | join(", ") | if . == "" then "deadline or eviction" else . end')
-      gh issue comment "$n" -R "$REPO" --body "🤖 The software-engineer agent's run stopped before it could report: $reason. Logs: \`kubectl -n $NAMESPACE logs job/agent-issue-$n -c agent\` (and \`-c publish\`)." >/dev/null || true
+      gh issue comment "$n" -R "$REPO" --body "🤖 The dev agent's run stopped before it could report: $reason. Logs: \`kubectl -n $NAMESPACE logs job/agent-issue-$n -c agent\` (and \`-c publish\`)." >/dev/null || true
       kubectl -n "$NAMESPACE" label job "agent-issue-$n" reported=true --overwrite >/dev/null
     done
 
@@ -54,7 +54,7 @@ if kubectl -n "$NAMESPACE" get job "agent-issue-$n" >/dev/null 2>&1; then
 else
   ISSUE="$n" envsubst '${ISSUE} ${IMAGE} ${REPO} ${OWNER_LOGIN} ${NAMESPACE}' \
     < /etc/agents/job-template.yaml | kubectl create -f -
-  gh issue comment "$n" -R "$REPO" --body "🤖 The software-engineer agent picked this up (job \`agent-issue-$n\`). It will open a draft PR for review, or comment here if it can't." >/dev/null
+  gh issue comment "$n" -R "$REPO" --body "🤖 The dev agent picked this up (job \`agent-issue-$n\`). It will open a draft PR for review, or comment here if it can't." >/dev/null
 fi
 gh issue edit "$n" -R "$REPO" --remove-label agent:todo --add-label agent:working >/dev/null
 say "started issue #$n"

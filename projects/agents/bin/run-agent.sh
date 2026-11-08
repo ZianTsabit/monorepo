@@ -30,7 +30,7 @@ git clone --quiet --depth 50 "https://github.com/$REPO.git" /work/repo || finish
 cd /work/repo
 git rev-parse HEAD > "$out/base"
 
-role_file=.claude/agents/software-engineer.md
+role_file=.claude/agents/dev.md
 [ -f "$role_file" ] || finish failed "$role_file is missing from the repository."
 role=$(awk '/^---$/ { n++; next } n >= 2' "$role_file")
 

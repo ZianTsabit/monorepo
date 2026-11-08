@@ -1,6 +1,6 @@
 # CLAUDE.md — agents
 
-The GitHub-issue runner for the software-engineer agent. Read `README.md` for the
+The GitHub-issue runner for the dev agent. Read `README.md` for the
 flow; this file is what is easy to break.
 
 - **The two containers' credentials must never meet.** `agent` (init container) gets
@@ -25,7 +25,7 @@ flow; this file is what is easy to break.
   report or tree containing the Claude credential's value; it does not filter
   anything else, so the agent must have nothing else worth leaking (no kubeconfig,
   no ServiceAccount token: `automountServiceAccountToken: false`).
-- The role prompt comes from the clone's `.claude/agents/software-engineer.md` at run
+- The role prompt comes from the clone's `.claude/agents/dev.md` at run
   time, so editing that file on `main` changes the agent without a new image.
 - Claude Code flags in `run-agent.sh` are the safety boundary for tools:
   `--allowedTools` has no web tools, and `--disallowedTools` blocks them explicitly.

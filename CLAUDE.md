@@ -17,7 +17,7 @@ Current projects:
 
 - `projects/ziantsabit/` — ziantsabit.com: `ziantsabit-fe/` (React + Vite SPA) and `ziantsabit-be/` (Spring Boot API), deployed by `deployments/k8s/ziantsabit/`.
 - `projects/spark/` — PySpark jobs for learning Spark (plan in `learnings/spark/`), run on the cluster by `deployments/k8s/spark/`.
-- `projects/agents/` — runs the `software-engineer` agent on GitHub issues labelled `agent:todo` (owner's only), one Job per issue, deployed by `deployments/k8s/agents/`.
+- `projects/agents/` — runs the `dev` agent on GitHub issues labelled `agent:todo` (owner's only), one Job per issue, deployed by `deployments/k8s/agents/`.
 - `projects/langfuse/` — Langfuse for agent traces, run **on the laptop** with Docker Compose (not on the cluster: the Proxmox host has no memory to spare). Secrets in Vault `kv/laptop/langfuse`.
 
 ## Adding a project
@@ -46,14 +46,14 @@ kubectl apply -k deployments/k8s/<name>/overlays/stg
 
 Subagents in `.claude/agents/`, one role each, for ziantsabit.com:
 
-- `software-engineer` — code changes to `projects/ziantsabit/` (SPA and API), with tests. Doesn't deploy.
+- `dev` — code changes to `projects/ziantsabit/` (SPA and API), with tests. Doesn't deploy.
 - `devops` — builds, pushes and deploys to stg, then prod after the user confirms. Doesn't commit.
 - `qa` — tests the site and API (stg by default; prod read-only) and reports bugs. Doesn't edit code.
 - `ziantsabit-admin` — writes "site update" posts on ziantsabit.com from git history and the cluster, labelled as written by an AI agent, not Zian. Creates drafts; publishes only after the user approves.
 
-`software-engineer` also runs unattended in the cluster on issues labelled `agent:todo` (`projects/agents/`); it opens a draft PR and nothing more.
+`dev` also runs unattended in the cluster on issues labelled `agent:todo` (`projects/agents/`); it opens a draft PR and nothing more.
 
-The usual flow is software-engineer → devops (stg) → qa (stg) → devops (prod) → qa (prod).
+The usual flow is dev → devops (stg) → qa (stg) → devops (prod) → qa (prod).
 
 ## Cross-references
 

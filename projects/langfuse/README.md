@@ -1,7 +1,7 @@
 # langfuse
 
 [Langfuse](https://langfuse.com) v4, self-hosted **on the laptop** with Docker
-Compose, to trace the agents: every run of the in-cluster `software-engineer`
+Compose, to trace the agents: every run of the in-cluster `dev`
 ([`projects/agents`](../agents)) becomes one trace with each tool call, its
 timing, and the run's cost and tokens.
 
