@@ -209,7 +209,11 @@ function loadImage(url: string): Promise<HTMLImageElement | null> {
     image.decoding = "async";
     image.onload = () => resolve(image);
     image.onerror = () => resolve(null);
-    image.src = url;
+    // A distinct URL, so the browser can't answer from the copy a plain <img>
+    // cached earlier: S3-style hosts send CORS headers only when the request
+    // has an Origin, without `Vary: Origin`, so that copy has none and the
+    // CORS load fails against it.
+    image.src = `${url}${url.includes("?") ? "&" : "?"}card=1`;
   });
 }
 
