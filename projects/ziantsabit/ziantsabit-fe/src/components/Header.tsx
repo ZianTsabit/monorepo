@@ -16,7 +16,9 @@ import { HEADER_HEIGHT } from "../constants/layout";
 const navItems = [
   { to: "/", label: "Blog" },
   { to: "/books", label: "Books" },
-  { to: "/curriculum-vitae", label: "CV" },
+  // CV hidden from the nav for now; the /curriculum-vitae route and the
+  // /admin/cv editor still work. Restore this line to bring it back.
+  // { to: "/curriculum-vitae", label: "CV" },
   { to: "/about", label: "About" },
 ];
 
